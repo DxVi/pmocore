@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Test coverage
+coverage/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# IDE-specific files (VS Code shared settings are intentionally not ignored)
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log

@@ -1,0 +1,17 @@
+{
+  "name": "pmocore",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "database"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "@types/node": "^24.13.3"
+  }
+}

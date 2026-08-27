@@ -1,0 +1,19 @@
+{
+  "name": "@pmocore/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.10",
+    "@types/pg": "^8.23.1"
+  }
+}
