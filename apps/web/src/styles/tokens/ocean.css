@@ -1,0 +1,28 @@
+[data-theme='ocean'] {
+  /* Surface */
+  --pmo-bg-primary: #ffffff;
+  --pmo-bg-secondary: #eef6fa;
+  --pmo-bg-tertiary: #dcedf5;
+
+  /* Text */
+  --pmo-text-primary: #10293a;
+  --pmo-text-secondary: #3f6478;
+  --pmo-text-muted: #86a6b6;
+
+  /* Brand / Accent */
+  --pmo-accent-primary: #0284c7;
+  --pmo-accent-hover: #026aa2;
+
+  /* Borders */
+  --pmo-border-color: #cfe4ee;
+
+  /* Sidebar / Navigation */
+  --pmo-sidebar-bg: #073042;
+  --pmo-sidebar-text: #d9edf5;
+
+  /* Status Colors */
+  --pmo-status-success: #17a673;
+  --pmo-status-warning: #e0a336;
+  --pmo-status-danger: #d1495b;
+  --pmo-status-info: #22a1c9;
+}

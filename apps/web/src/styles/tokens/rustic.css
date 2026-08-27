@@ -1,0 +1,28 @@
+[data-theme='rustic'] {
+  /* Surface */
+  --pmo-bg-primary: #fdfaf6;
+  --pmo-bg-secondary: #f5ede1;
+  --pmo-bg-tertiary: #ebdcc7;
+
+  /* Text */
+  --pmo-text-primary: #3b2a1e;
+  --pmo-text-secondary: #6b503b;
+  --pmo-text-muted: #a68b6f;
+
+  /* Brand / Accent */
+  --pmo-accent-primary: #b5652b;
+  --pmo-accent-hover: #954f1e;
+
+  /* Borders */
+  --pmo-border-color: #e0cba9;
+
+  /* Sidebar / Navigation */
+  --pmo-sidebar-bg: #3b2a1e;
+  --pmo-sidebar-text: #f2e3cf;
+
+  /* Status Colors */
+  --pmo-status-success: #588157;
+  --pmo-status-warning: #d69a3d;
+  --pmo-status-danger: #b3452c;
+  --pmo-status-info: #4f7f8a;
+}

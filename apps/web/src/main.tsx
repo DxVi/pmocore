@@ -1,8 +1,9 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import 'bootstrap/dist/css/bootstrap.min.css';
+import '@/styles/global.css';
 import App from './App';
 import { QueryProvider } from '@/providers/QueryProvider';
+import { ThemeProvider } from '@/providers/ThemeProvider';
 
 const root = document.getElementById('root');
 
@@ -13,7 +14,9 @@ if (!root) {
 createRoot(root).render(
   <StrictMode>
     <QueryProvider>
-      <App />
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
     </QueryProvider>
   </StrictMode>,
 );

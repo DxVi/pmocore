@@ -1,0 +1,28 @@
+[data-theme='etch'] {
+  /* Surface */
+  --pmo-bg-primary: #fbfbfa;
+  --pmo-bg-secondary: #f0f0ee;
+  --pmo-bg-tertiary: #e2e2de;
+
+  /* Text */
+  --pmo-text-primary: #111111;
+  --pmo-text-secondary: #444444;
+  --pmo-text-muted: #7a7a7a;
+
+  /* Brand / Accent */
+  --pmo-accent-primary: #111111;
+  --pmo-accent-hover: #000000;
+
+  /* Borders */
+  --pmo-border-color: #d0d0cb;
+
+  /* Sidebar / Navigation */
+  --pmo-sidebar-bg: #111111;
+  --pmo-sidebar-text: #f0f0ee;
+
+  /* Status Colors */
+  --pmo-status-success: #2e7d32;
+  --pmo-status-warning: #b8860b;
+  --pmo-status-danger: #b00020;
+  --pmo-status-info: #37474f;
+}

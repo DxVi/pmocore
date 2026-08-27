@@ -1,0 +1,44 @@
+@import 'bootstrap/dist/css/bootstrap.min.css';
+@import './_variables.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--pmo-font-family-base);
+  font-size: var(--pmo-font-size-base);
+  line-height: var(--pmo-line-height-base);
+  background-color: var(--pmo-bg-primary);
+  color: var(--pmo-text-primary);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+/* Bridge PMOCore tokens into the Bootstrap variables it reads from, so
+   utility classes and components reflect the active theme without a
+   full visual redesign (deferred to later refinement). */
+:root {
+  --bs-body-bg: var(--pmo-bg-primary);
+  --bs-body-color: var(--pmo-text-primary);
+  --bs-secondary-color: var(--pmo-text-secondary);
+  --bs-border-color: var(--pmo-border-color);
+  --bs-border-radius: var(--pmo-border-radius);
+  --bs-link-color: var(--pmo-accent-primary);
+  --bs-link-hover-color: var(--pmo-accent-hover);
+}
+
+.card {
+  background-color: var(--pmo-bg-secondary);
+  border-color: var(--pmo-border-color);
+}

@@ -1,0 +1,29 @@
+:root,
+[data-theme='light'] {
+  /* Surface */
+  --pmo-bg-primary: #ffffff;
+  --pmo-bg-secondary: #f8f9fa;
+  --pmo-bg-tertiary: #e9ecef;
+
+  /* Text */
+  --pmo-text-primary: #212529;
+  --pmo-text-secondary: #6c757d;
+  --pmo-text-muted: #adb5bd;
+
+  /* Brand / Accent */
+  --pmo-accent-primary: #0d6efd;
+  --pmo-accent-hover: #0b5ed7;
+
+  /* Borders */
+  --pmo-border-color: #dee2e6;
+
+  /* Sidebar / Navigation */
+  --pmo-sidebar-bg: #1a1d23;
+  --pmo-sidebar-text: #e9ecef;
+
+  /* Status Colors */
+  --pmo-status-success: #198754;
+  --pmo-status-warning: #ffc107;
+  --pmo-status-danger: #dc3545;
+  --pmo-status-info: #0dcaf0;
+}
