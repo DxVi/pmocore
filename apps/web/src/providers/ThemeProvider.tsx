@@ -1,27 +1,14 @@
+import { useCallback, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 import {
-  createContext,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type PropsWithChildren,
-} from 'react';
-
-export const THEMES = ['system', 'light', 'dark', 'emerald', 'ocean', 'rustic', 'etch'] as const;
-
-export type Theme = (typeof THEMES)[number];
-export type ResolvedTheme = Exclude<Theme, 'system'>;
-
-export type ThemeContextValue = {
-  theme: Theme;
-  resolvedTheme: ResolvedTheme;
-  setTheme: (theme: Theme) => void;
-};
+  THEMES,
+  ThemeContext,
+  type ResolvedTheme,
+  type Theme,
+  type ThemeContextValue,
+} from './theme-context';
 
 const STORAGE_KEY = 'pmocore-theme';
 const DEFAULT_THEME: Theme = 'system';
-
-export const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 function isTheme(value: string | null): value is Theme {
   return value !== null && (THEMES as readonly string[]).includes(value);

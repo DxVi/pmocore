@@ -1,6 +1,6 @@
 import type { HealthResponse } from '@pmocore/shared';
 import { useTheme } from '@/hooks/useTheme';
-import { THEMES, type Theme } from '@/providers/ThemeProvider';
+import { THEMES, type Theme } from '@/providers/theme-context';
 
 const initialHealth: Pick<HealthResponse, 'status'> = {
   status: 'healthy',
@@ -28,9 +28,7 @@ export default function App() {
               Project Management &amp; Operations
             </p>
             <h1 className="display-6 fw-semibold mb-2">PMOCore</h1>
-            <p className="text-secondary mb-0">
-              Enterprise application foundation is operational.
-            </p>
+            <p className="text-secondary mb-0">Enterprise application foundation is operational.</p>
           </div>
 
           <div className="d-flex flex-column" style={{ minWidth: '10rem' }}>
