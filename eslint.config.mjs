@@ -48,7 +48,7 @@ export default tseslint.config(
         // repo's normal compiler options (e.g. Node ambient types) instead of
         // TypeScript's bare defaults.
         projectService: {
-          allowDefaultProject: ['database/drizzle.config.ts'],
+          allowDefaultProject: ['database/drizzle.config.ts', 'packages/shared/vitest.config.ts'],
           defaultProject: 'tsconfig.base.json',
         },
         tsconfigRootDir: import.meta.dirname,

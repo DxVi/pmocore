@@ -7,5 +7,5 @@
       "@pmocore/database": ["../../database/src/index.ts"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "vitest.config.ts"]
 }
