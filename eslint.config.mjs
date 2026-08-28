@@ -60,20 +60,21 @@ export default tseslint.config(
     // apps/api imports @pmocore/shared and @pmocore/database. Those workspace
     // packages only expose types through their built `dist/` output, which is
     // gitignored and may not exist yet (e.g. right after a clean install, before
-    // any build step has run — exactly the state `npm run lint` runs in per
-    // AUTH01-TASK-12's install -> lint -> typecheck -> build order). apps/api's
-    // own tsconfig.json can't path-map around this: it sets rootDir/outDir for
-    // its real `dist` build, and TypeScript refuses to resolve an import outside
-    // rootDir (TS6059) once emit is in play. tsconfig.eslint.json is a
-    // lint/typecheck-only sibling with no rootDir/outDir that path-maps both
-    // packages straight to their source, so type-aware linting never depends on
-    // a prior build. It is never used by `npm run build`, which still runs
+    // any build step has run — exactly the state root `npm run lint` and
+    // `npm run typecheck` run in, per their install -> lint -> typecheck -> test
+    // -> build ordering). apps/api's own tsconfig.json can't path-map around
+    // this: it sets rootDir/outDir for its real `dist` build, and TypeScript
+    // refuses to resolve an import outside rootDir (TS6059) once emit is in
+    // play. tsconfig.typecheck.json is a lint/typecheck-only sibling with no
+    // rootDir/outDir that path-maps both packages straight to their source, so
+    // type-aware linting (and the root `typecheck` script) never depend on a
+    // prior build. It is never used by `npm run build`, which still runs
     // against apps/api/tsconfig.json unchanged.
     files: API_TS_GLOBS,
     extends: TYPE_CHECKED_EXTENDS,
     languageOptions: {
       parserOptions: {
-        project: ['apps/api/tsconfig.eslint.json'],
+        project: ['apps/api/tsconfig.typecheck.json'],
         tsconfigRootDir: import.meta.dirname,
       },
     },
