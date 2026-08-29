@@ -318,6 +318,8 @@ export type Env = z.infer<typeof envSchema>;
 export const env: Env = envSchema.parse(process.env);
 ```
 
+Note on `DATABASE_SSL`: the authoritative validation of `DATABASE_SSL` (and the SSL-to-pg mapping) lives in `@pmocore/database`, not in this API env module — see Section 6 and AUTH01-REQ-076. This keeps SSL behavior consistent for every consumer of the database package, including non-API consumers. The API env module may document `DATABASE_SSL` for completeness, but it is not the owner of that value.
+
 ### .env.example
 
 ```env
@@ -325,8 +327,13 @@ export const env: Env = envSchema.parse(process.env);
 NODE_ENV=development
 PORT=3001              # Standardized API port (frontend uses 5173 via Vite)
 
-# Database (Neon PostgreSQL)
+# Database
 DATABASE_URL=postgresql://user:password@host.neon.tech/dbname?sslmode=require
+
+# Database SSL mode: require | disable (default: require)
+#   require -> hosted PostgreSQL such as Neon (SSL enabled)
+#   disable -> local PostgreSQL without SSL (local development only)
+DATABASE_SSL=require
 
 # Logging
 LOG_LEVEL=debug
@@ -344,20 +351,54 @@ LOG_LEVEL=debug
 
 ### Connection
 
+The `@pmocore/database` workspace owns and authoritatively validates the database connection configuration, because it creates the PostgreSQL pool and may be consumed independently of the API workspace (e.g., by `drizzle.config.ts` or future seed scripts). SSL behavior is controlled by an explicit, validated `DATABASE_SSL` environment variable rather than being forced unconditionally.
+
+```typescript
+// database/src/config.ts  (configuration ownership lives in @pmocore/database)
+import { z } from 'zod';
+
+const dbEnvSchema = z.object({
+  DATABASE_URL: z.string().url(),
+  DATABASE_SSL: z.enum(['require', 'disable']).default('require'),
+});
+
+// Parse process.env; fail fast on invalid values (e.g. an unknown DATABASE_SSL).
+const dbEnv = dbEnvSchema.parse(process.env);
+
+// Pure, unit-testable mapping from the validated enum to the pg SSL option.
+export function resolveSslOption(
+  mode: 'require' | 'disable',
+): { rejectUnauthorized: false } | false {
+  // 'require' preserves the currently approved Neon-compatible behavior.
+  // 'disable' allows local PostgreSQL servers without SSL.
+  return mode === 'require' ? { rejectUnauthorized: false } : false;
+}
+
+export const databaseConfig = {
+  connectionString: dbEnv.DATABASE_URL,
+  ssl: resolveSslOption(dbEnv.DATABASE_SSL),
+};
+```
+
 ```typescript
 // database/src/connection.ts
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
+import { databaseConfig } from './config.js';
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }, // Neon requires SSL
-  max: 10,                             // Connection pool size
+  connectionString: databaseConfig.connectionString,
+  ssl: databaseConfig.ssl, // 'require' -> { rejectUnauthorized: false }; 'disable' -> false
+  max: 10,                 // Connection pool size
 });
 
 export const db = drizzle(pool);
 export { pool };
 ```
+
+Notes:
+- The exact module split (a dedicated `config.ts` vs. inlining the schema in `connection.ts`) is an implementation detail for AUTH01-TASK-12A; the requirement is that validation and SSL resolution are owned by `@pmocore/database` and are unit-testable without opening a real connection.
+- `DATABASE_SSL` is validated with Zod. Because this validation lives inside `@pmocore/database`, Zod MUST be declared as a direct dependency of that workspace (see AUTH01-TASK-12A), not relied upon via root hoisting.
 
 ### Drizzle Configuration
 
@@ -382,11 +423,28 @@ export default defineConfig({
 - No migrations are generated (no tables yet)
 - Health endpoint uses the pool to verify connectivity via `SELECT 1`
 
+### SSL Mode Configuration (DATABASE_SSL)
+
+PMOCore supports two database environments with a single, explicit control:
+
+| `DATABASE_SSL` | pg Pool `ssl` option | Intended use |
+|----------------|----------------------|--------------|
+| `require` (default) | `{ rejectUnauthorized: false }` | Neon and other hosted PostgreSQL requiring SSL |
+| `disable` | `false` | Local PostgreSQL without SSL |
+| unset | treated as `require` | Secure default — hosted/existing environments unaffected |
+| any other value | validation failure (fail fast) | Prevents silent misconfiguration |
+
+Design rules:
+- The secure default is `require`. Omitting `DATABASE_SSL` reproduces the previously approved unconditional-SSL behavior exactly, so Neon and existing deployments are unaffected with no configuration change.
+- SSL mode is determined **solely** by the validated `DATABASE_SSL` value. It is NOT inferred from `NODE_ENV`, the database hostname, local/production detection, or connection-string heuristics (AUTH01-REQ-075). This avoids coupling a security control to an easily-mislabeled environment name.
+- `require` retains `rejectUnauthorized: false`. This is **preserved existing behavior**, not a new decision. Stricter certificate verification for Neon (e.g., providing a proper CA and enabling `rejectUnauthorized: true`) remains a FUTURE CONSIDERATION and is out of scope for this correction.
+
 ### Neon-Specific Considerations
 
-- Neon requires SSL connections (`sslmode=require` in connection string)
-- Neon supports connection pooling natively; the `pg` Pool provides application-level pooling
-- Neon's serverless driver (`@neondatabase/serverless`) is NOT used; we use standard `pg` for compatibility and simplicity
+- Neon requires SSL; hosted environments use `DATABASE_SSL=require` (or leave it unset, since `require` is the default).
+- Neon supports connection pooling natively; the `pg` Pool provides application-level pooling.
+- Neon's serverless driver (`@neondatabase/serverless`) is NOT used; we use standard `pg` for compatibility and simplicity.
+- The PostgreSQL/Neon target, Drizzle ORM, and standard `pg` architecture are unchanged by this correction; only SSL negotiation becomes configurable.
 
 ---
 
@@ -824,3 +882,4 @@ This is a V1 deployment decision. It may be revisited later if scaling or operat
 | D-005 | Single service deployment (Option B) | Simplicity for V1; revisit if scaling requires separation | Approved |
 | D-006 | Flat ESLint config (eslint.config.mjs) | Current ESLint standard | Approved (baseline) |
 | D-007 | Vitest over Jest | Faster, native ESM, Vite-aligned | Approved (baseline) |
+| D-008 | Explicit `DATABASE_SSL` enum (`require`\|`disable`, default `require`), owned/validated in `@pmocore/database` | Supports local non-SSL PostgreSQL and mandatory-SSL Neon with a secure default; no `NODE_ENV`/host inference; preserves Neon behavior. Chosen over sslmode-parsing, env-based, and forcing local SSL | Approved (correction — see AUTH01-TASK-12A) |

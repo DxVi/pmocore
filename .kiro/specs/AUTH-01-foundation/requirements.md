@@ -92,6 +92,16 @@ pmocore/
 
 **AUTH01-REQ-020** — The database configuration SHALL connect to a Neon PostgreSQL instance using a connection string provided via environment variable.
 
+**AUTH01-REQ-074** — Database SSL behavior SHALL be controlled by an explicit, validated environment variable `DATABASE_SSL` with the permitted values `require` and `disable`.
+- The secure default SHALL be `require`. When `DATABASE_SSL` is unset, the system SHALL behave as `require`.
+- `require` SHALL enable PostgreSQL SSL using the currently approved Neon-compatible behavior (`ssl: { rejectUnauthorized: false }`).
+- `disable` SHALL disable PostgreSQL SSL (`ssl: false`) to support local PostgreSQL servers without SSL.
+- Any value other than `require` or `disable` SHALL cause a clear configuration/startup validation failure.
+
+**AUTH01-REQ-075** — SSL mode SHALL NOT be inferred from `NODE_ENV`, the database hostname, local/production detection, or any undocumented connection-string heuristic. It SHALL be determined solely by the validated `DATABASE_SSL` value.
+
+**AUTH01-REQ-076** — The database connection configuration (including `DATABASE_SSL` validation) SHALL be owned and authoritatively validated within the `@pmocore/database` workspace, because that workspace creates the PostgreSQL connection pool and may be consumed independently of the API workspace.
+
 **AUTH01-REQ-021** — The database workspace SHALL include a Drizzle configuration file (`drizzle.config.ts`) ready for migration generation and execution.
 
 **AUTH01-REQ-022** — The `database/migrations/` directory SHALL exist and be ready to receive migration files (no tables are created in AUTH-01).
@@ -109,7 +119,8 @@ pmocore/
 **AUTH01-REQ-026** — The following environment variables SHALL be defined at minimum:
 - `NODE_ENV` — application environment (development, production, test)
 - `PORT` — backend server port
-- `DATABASE_URL` — Neon PostgreSQL connection string
+- `DATABASE_URL` — PostgreSQL connection string (Neon in hosted environments)
+- `DATABASE_SSL` — database SSL mode (`require` | `disable`; default `require`) — see AUTH01-REQ-074
 - `LOG_LEVEL` — Pino log level (debug, info, warn, error)
 
 **AUTH01-REQ-027** — `.env` files SHALL be excluded from version control via `.gitignore`.

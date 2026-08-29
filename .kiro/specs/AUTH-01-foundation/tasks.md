@@ -530,10 +530,101 @@ Create the README.md and docs directory structure with placeholder files.
 
 ---
 
+## AUTH01-TASK-12A: Database SSL Mode Configuration
+
+### Objective
+Make PostgreSQL SSL behavior explicitly configurable via a validated `DATABASE_SSL` environment variable, owned and validated within the `@pmocore/database` workspace, so PMOCore can connect to both mandatory-SSL Neon (default) and local non-SSL PostgreSQL — without inferring SSL from `NODE_ENV`, hostname, or connection-string heuristics.
+
+This corrects the previously approved design in which SSL was forced unconditionally (`ssl: { rejectUnauthorized: false }`), which rejects otherwise-valid local non-SSL PostgreSQL connections and causes `GET /api/health` to report `degraded`/`disconnected`.
+
+### Requirements Covered
+- AUTH01-REQ-074 (validated `DATABASE_SSL` enum, secure default `require`, mapping, invalid → fail)
+- AUTH01-REQ-075 (no inference from `NODE_ENV`/hostname/heuristics)
+- AUTH01-REQ-076 (configuration owned/validated in `@pmocore/database`)
+- AUTH01-REQ-026 (env var set includes `DATABASE_SSL`)
+
+### Dependencies
+- Depends on AUTH01-TASK-03 (database package foundation) — implemented and checkpointed.
+- **Blocks final completion of AUTH01-TASK-12.** TASK-12 has already been partially executed: its non-database-dependent verification was completed successfully and remains valid. TASK-12A does not invalidate that work. TASK-12 must not be **marked complete** until TASK-12A is implemented and checkpointed; after that, TASK-12 resumes for the remaining database-dependent verification and any proportionate regression checks.
+
+### Affected Files
+- `database/src/connection.ts` — consume the validated config; remove the unconditional `ssl` object
+- `database/src/config.ts` — new focused configuration module: Zod validation of `DATABASE_URL` + `DATABASE_SSL`, and a pure `resolveSslOption` mapping (module split is at implementer discretion, but validation + mapping must live in `@pmocore/database`)
+- `database/package.json` — add `zod` as a **direct** dependency (see dependency decision below); add `test` script
+- `database/vitest.config.ts` — new; Node environment; `include: ['src/**/*.test.ts']`
+- `database/src/__tests__/config.test.ts` (or equivalent) — new SSL/config unit tests
+- `.env.example` — add `DATABASE_SSL` with documented values and secure default
+- `README.md` — document local (`disable`) vs Neon/hosted (`require`) setup
+- `package-lock.json` — consequential (only from declaring the `zod` direct dependency)
+
+### Dependency Decision (Zod)
+- Zod MUST be declared as a **direct dependency** of `@pmocore/database` (recommended `"zod": "^4.4.3"` to match the version already used by `@pmocore/shared`, `@pmocore/api`, and `@pmocore/web`).
+- Do NOT rely on root/workspace hoisting to satisfy Zod for this package.
+- The internal-workspace `"*"` convention applies only to `@pmocore/*` workspace dependencies, NOT to third-party packages such as `zod`.
+
+### Implementation Boundaries
+- Do NOT create database tables, schema, or migrations.
+- Do NOT add authentication or business functionality.
+- Do NOT redesign the existing PostgreSQL/Neon, Drizzle ORM, or standard `pg` architecture.
+- Do NOT change SSL behavior of any other workspace or infer SSL from `NODE_ENV`/hostname.
+- Preserve `rejectUnauthorized: false` for `require` (existing behavior). Stricter certificate verification is a FUTURE CONSIDERATION and is out of scope.
+- Do NOT require a real Neon account, credentials, connection string, or network connection to verify this task. Local PostgreSQL is the approved verification environment; live Neon verification is deferred to the separately authorized Neon migration/deployment stage.
+- Do NOT modify unrelated AUTH-01 tasks.
+- Do NOT access, request, or expose real credentials.
+
+### Details
+1. Add `zod` (`^4.4.3`) to `database/package.json` dependencies.
+2. Create the configuration module in `@pmocore/database` that:
+   - Validates `DATABASE_URL` (URL) and `DATABASE_SSL` (`enum(['require','disable']).default('require')`) via Zod.
+   - Fails fast with a clear error on invalid `DATABASE_SSL`.
+   - Exposes a pure `resolveSslOption(mode)` returning `{ rejectUnauthorized: false }` for `require` and `false` for `disable`.
+3. Update `connection.ts` to build the `pg` Pool from the validated config (connection string + resolved `ssl`).
+4. Add `database/vitest.config.ts` and a `test` script to `database/package.json` (the root `test` script already picks up new workspace test scripts via `--if-present`).
+5. Update `.env.example` and `README.md` to document `DATABASE_SSL`.
+
+### Tests (no real network connections)
+- `DATABASE_SSL` unset → resolves to `require` → SSL option is `{ rejectUnauthorized: false }`.
+- `DATABASE_SSL=require` → SSL option is `{ rejectUnauthorized: false }`.
+- `DATABASE_SSL=disable` → SSL option is `false`.
+- Invalid value (e.g., `maybe`) → validation throws / fails clearly.
+- Tests exercise the pure validation + `resolveSslOption` logic only; they MUST NOT instantiate a live `Pool` connection or open a socket.
+
+### Verification Steps
+1. `npm install` succeeds; `@pmocore/database` resolves `zod` as a direct dependency (present in `database/package.json`).
+2. `npx eslint .` passes (no new lint errors in the database workspace).
+3. Root typecheck passes (database workspace type-checks).
+4. `npm test` runs the new database SSL tests and they pass; existing API health test still passes.
+5. **Local real-database verification (required):** With `DATABASE_SSL=disable` and a running local non-SSL PostgreSQL, `GET /api/health` returns `status: "healthy"`, `database: "connected"`.
+6. **`require` path verification WITHOUT a live Neon connection (required):** Verify the `require`/default path through automated tests and type verification only — no real Neon account, credentials, connection string, or network connection is required:
+   - Unit verification that unset or `require` resolves to `{ rejectUnauthorized: false }`.
+   - Confirmation that this value is equivalent to the previously approved Pool SSL configuration (i.e., behavior is unchanged from the prior baseline).
+   - Existing automated tests and root typecheck continue to pass.
+   - Live Neon connectivity verification is **deferred** to the separately authorized Neon migration/deployment stage. This deferral does NOT weaken or change the default `require` behavior.
+7. No credentials committed; `.env` remains untracked.
+
+### Acceptance Criteria
+- [ ] `DATABASE_SSL` is validated in `@pmocore/database` with permitted values `require` | `disable` and default `require`
+- [ ] Unset or `require` produces `ssl: { rejectUnauthorized: false }` (verified by unit tests, equivalent to the prior approved Pool SSL config — no live Neon connection required); `disable` produces `ssl: false`
+- [ ] Invalid `DATABASE_SSL` fails fast with a clear error
+- [ ] SSL mode is not inferred from `NODE_ENV`, hostname, or connection-string heuristics
+- [ ] `zod` is a direct dependency of `@pmocore/database` (not hoisted)
+- [ ] `database` workspace has a Vitest config and passing SSL unit tests that open no real connections
+- [ ] `.env.example` and `README.md` document `DATABASE_SSL`
+- [ ] Existing PostgreSQL/Neon, Drizzle, and `pg` architecture is otherwise unchanged
+- [ ] No tables, migrations, auth, or business functionality were added
+
+---
+
 ## AUTH01-TASK-12: Full Foundation Verification
 
 ### Objective
 Execute a complete verification of the AUTH-01 foundation to confirm all requirements are satisfied and the system is operational end-to-end.
+
+### Status & Dependencies
+- **Partially executed.** TASK-12's non-database-dependent verification (install, lint, typecheck, tests, build, backend/frontend startup, frontend proxy, theme, responsive baseline, error handling, security headers, Git status) has been completed successfully and remains valid. That completed work is not erased or invalidated by TASK-12A.
+- **Depends on AUTH01-TASK-12A** (Database SSL Mode Configuration) for the remaining database-dependent verification, because clean-state database connectivity relies on the `DATABASE_SSL` configuration.
+- TASK-12 must **not be marked complete** until TASK-12A is implemented and checkpointed. After TASK-12A, TASK-12 resumes for the remaining database-dependent verification (step 7 health/connectivity against local PostgreSQL) plus any proportionate regression checks on the previously completed steps.
+- Live Neon connectivity verification is **deferred** to the separately authorized Neon migration/deployment stage and is not required to complete TASK-12 at this time.
 
 ### Affected Files
 - None (verification only; minor fixes if needed)
@@ -581,12 +672,14 @@ Execute a complete verification of the AUTH-01 foundation to confirm all require
    - Verify: server starts, logs startup message
    - (Requires valid DATABASE_URL in environment)
 
-7. **Health endpoint:**
+7. **Health endpoint (database-dependent — resumes after TASK-12A):**
    ```
    curl http://localhost:3001/api/health
    ```
-   - Verify: returns 200 with correct JSON shape
-   - Verify: database field shows "connected" (with valid Neon URL)
+   - Verify: returns 200 with correct JSON shape.
+   - Current approved verification environment — local non-SSL PostgreSQL with `DATABASE_SSL=disable`: database field shows "connected", `status: "healthy"`.
+   - The `require`/default path (`{ rejectUnauthorized: false }`) is verified via TASK-12A unit tests and type checks; a live Neon connection is NOT required here and is deferred to the separately authorized Neon migration/deployment stage.
+   - (Depends on AUTH01-TASK-12A being implemented and checkpointed.)
 
 8. **Frontend startup:**
    ```
@@ -664,7 +757,11 @@ TASK-01: Root workspace config
     │
     ├── TASK-11: Documentation (depends on structure being final)
     │
-    └── TASK-12: Full verification (depends on all above)
+    ├── TASK-12A: Database SSL mode config (depends on TASK-03; blocks TASK-12)
+    │
+    └── TASK-12: Full verification (depends on all above, including TASK-12A)
 ```
 
-Strict sequential execution order: 01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12
+Strict sequential execution order: 01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12A → 12 (final completion)
+
+Note: TASK-12A is an approved architecture correction (see D-008 and AUTH01-REQ-074..076) inserted after the original TASK-11. TASK-12 was already partially executed — its non-database-dependent verification completed successfully and remains valid. TASK-12A must be implemented and checkpointed before TASK-12 is marked complete; TASK-12 then resumes for the remaining database-dependent verification (against local PostgreSQL) and proportionate regression checks. Live Neon verification is deferred to the separately authorized Neon migration/deployment stage.
