@@ -537,10 +537,13 @@ Make PostgreSQL SSL behavior explicitly configurable via a validated `DATABASE_S
 
 This corrects the previously approved design in which SSL was forced unconditionally (`ssl: { rejectUnauthorized: false }`), which rejects otherwise-valid local non-SSL PostgreSQL connections and causes `GET /api/health` to report `degraded`/`disconnected`.
 
+> **AMENDMENT (post-TASK-12A verification):** Verification revealed that `pg` honors SSL-control parameters embedded in `DATABASE_URL` (e.g., `?sslmode=require`), which can override the explicit `ssl` option and defeat `DATABASE_SSL`. This task is amended (implementation still uncommitted) to make `DATABASE_SSL` the **sole** SSL authority by rejecting SSL-control parameters in `DATABASE_URL`. See AUTH01-REQ-077 and D-009.
+
 ### Requirements Covered
 - AUTH01-REQ-074 (validated `DATABASE_SSL` enum, secure default `require`, mapping, invalid → fail)
 - AUTH01-REQ-075 (no inference from `NODE_ENV`/hostname/heuristics)
 - AUTH01-REQ-076 (configuration owned/validated in `@pmocore/database`)
+- AUTH01-REQ-077 (reject SSL-control parameters in `DATABASE_URL` — sole SSL authority)
 - AUTH01-REQ-026 (env var set includes `DATABASE_SSL`)
 
 ### Dependencies
@@ -569,6 +572,8 @@ This corrects the previously approved design in which SSL was forced uncondition
 - Do NOT change SSL behavior of any other workspace or infer SSL from `NODE_ENV`/hostname.
 - Preserve `rejectUnauthorized: false` for `require` (existing behavior). Stricter certificate verification is a FUTURE CONSIDERATION and is out of scope.
 - Do NOT require a real Neon account, credentials, connection string, or network connection to verify this task. Local PostgreSQL is the approved verification environment; live Neon verification is deferred to the separately authorized Neon migration/deployment stage.
+- Do NOT normalize, strip, or silently rewrite `DATABASE_URL`; SSL-control parameters are **rejected** (fail fast), not removed (Option A).
+- Do NOT introduce a new production dependency for URL parsing; use standard Node `URL`/`URLSearchParams`.
 - Do NOT modify unrelated AUTH-01 tasks.
 - Do NOT access, request, or expose real credentials.
 
@@ -577,24 +582,27 @@ This corrects the previously approved design in which SSL was forced uncondition
 2. Create the configuration module in `@pmocore/database` that:
    - Validates `DATABASE_URL` (URL) and `DATABASE_SSL` (`enum(['require','disable']).default('require')`) via Zod.
    - Fails fast with a clear error on invalid `DATABASE_SSL`.
+   - **Rejects** any `DATABASE_URL` containing the SSL-control parameters `sslmode`, `sslcert`, `sslkey`, or `sslrootcert` (case-insensitive), using standard Node `URL`/`URLSearchParams`. The error MAY name the offending key(s) but MUST NOT include the full URL, hostname, username, password, database name, or any parameter values. No stripping/normalization.
    - Exposes a pure `resolveSslOption(mode)` returning `{ rejectUnauthorized: false }` for `require` and `false` for `disable`.
 3. Update `connection.ts` to build the `pg` Pool from the validated config (connection string + resolved `ssl`).
 4. Add `database/vitest.config.ts` and a `test` script to `database/package.json` (the root `test` script already picks up new workspace test scripts via `--if-present`).
-5. Update `.env.example` and `README.md` to document `DATABASE_SSL`.
+5. Update `.env.example` and `README.md`: document `DATABASE_SSL`; remove `?sslmode=require` from the example URL; state that SSL parameters do not belong in `DATABASE_URL` and `DATABASE_SSL` controls SSL exclusively.
 
 ### Tests (no real network connections)
 - `DATABASE_SSL` unset → resolves to `require` → SSL option is `{ rejectUnauthorized: false }`.
 - `DATABASE_SSL=require` → SSL option is `{ rejectUnauthorized: false }`.
 - `DATABASE_SSL=disable` → SSL option is `false`.
-- Invalid value (e.g., `maybe`) → validation throws / fails clearly.
-- Tests exercise the pure validation + `resolveSslOption` logic only; they MUST NOT instantiate a live `Pool` connection or open a socket.
+- Invalid `DATABASE_SSL` value (e.g., `maybe`) → validation throws / fails clearly.
+- `DATABASE_URL` containing `sslmode` (and separately `sslcert`, `sslkey`, `sslrootcert`; also mixed case such as `SSLMode`) → rejected with a clear fail-fast error.
+- The rejection error message does NOT contain the full URL, host, credentials, database name, or parameter values (secret-safe assertion) — use synthetic non-secret URLs in tests.
+- Tests exercise the pure validation + URL-check + `resolveSslOption` logic only; they MUST NOT instantiate a live `Pool` connection or open a socket.
 
 ### Verification Steps
 1. `npm install` succeeds; `@pmocore/database` resolves `zod` as a direct dependency (present in `database/package.json`).
 2. `npx eslint .` passes (no new lint errors in the database workspace).
 3. Root typecheck passes (database workspace type-checks).
-4. `npm test` runs the new database SSL tests and they pass; existing API health test still passes.
-5. **Local real-database verification (required):** With `DATABASE_SSL=disable` and a running local non-SSL PostgreSQL, `GET /api/health` returns `status: "healthy"`, `database: "connected"`.
+4. `npm test` runs the new database SSL tests (including the URL SSL-parameter rejection tests) and they pass; existing API health test still passes.
+5. **Local real-database verification (required):** With a `DATABASE_URL` that has **no** SSL parameters, `DATABASE_SSL=disable`, and a running local non-SSL PostgreSQL, `GET /api/health` returns `status: "healthy"`, `database: "connected"`.
 6. **`require` path verification WITHOUT a live Neon connection (required):** Verify the `require`/default path through automated tests and type verification only — no real Neon account, credentials, connection string, or network connection is required:
    - Unit verification that unset or `require` resolves to `{ rejectUnauthorized: false }`.
    - Confirmation that this value is equivalent to the previously approved Pool SSL configuration (i.e., behavior is unchanged from the prior baseline).
@@ -606,12 +614,85 @@ This corrects the previously approved design in which SSL was forced uncondition
 - [ ] `DATABASE_SSL` is validated in `@pmocore/database` with permitted values `require` | `disable` and default `require`
 - [ ] Unset or `require` produces `ssl: { rejectUnauthorized: false }` (verified by unit tests, equivalent to the prior approved Pool SSL config — no live Neon connection required); `disable` produces `ssl: false`
 - [ ] Invalid `DATABASE_SSL` fails fast with a clear error
+- [ ] `DATABASE_URL` containing `sslmode`/`sslcert`/`sslkey`/`sslrootcert` (case-insensitive) is rejected with a fail-fast, secret-safe error (no URL/host/credentials/db-name/param values); no stripping/normalization
+- [ ] SSL-param detection uses standard Node URL parsing; no new production dependency added
 - [ ] SSL mode is not inferred from `NODE_ENV`, hostname, or connection-string heuristics
 - [ ] `zod` is a direct dependency of `@pmocore/database` (not hoisted)
-- [ ] `database` workspace has a Vitest config and passing SSL unit tests that open no real connections
-- [ ] `.env.example` and `README.md` document `DATABASE_SSL`
+- [ ] `database` workspace has a Vitest config and passing SSL/URL unit tests that open no real connections
+- [ ] `.env.example` and `README.md` document `DATABASE_SSL`, remove `?sslmode=require`, and state SSL params do not belong in `DATABASE_URL`
 - [ ] Existing PostgreSQL/Neon, Drizzle, and `pg` architecture is otherwise unchanged
 - [ ] No tables, migrations, auth, or business functionality were added
+
+---
+
+## AUTH01-TASK-12B: Request Log Secret Redaction
+
+### Objective
+Redact secret-bearing request and response headers before they are serialized to application logs, so session tokens and credentials never appear in PMOCore logs — while preserving useful operational request logging.
+
+This corrects a security defect discovered during TASK-12A verification: the default `pino-http` configuration serialized the full request `cookie` header (containing active session tokens from other localhost applications) into the logs.
+
+### Requirements Covered
+- AUTH01-REQ-078 (redact request `cookie`, request `authorization`, response `set-cookie`; preserve non-sensitive fields)
+- Supports AUTH01-REQ-040/046 intent (no exposure of sensitive information in logs/output)
+
+### Dependencies
+- Depends on AUTH01-TASK-04 (backend logging foundation) and AUTH01-TASK-05 (health route) — implemented and checkpointed.
+- Independent of TASK-12A. **Blocks final completion of AUTH01-TASK-12.**
+
+### Affected Files
+- `apps/api/src/lib/logger.ts` — configure `redact` on the base Pino logger (authoritative location); export a maintainable redaction-paths list
+- `apps/api/src/middleware/request-logger.ts` — no behavior change required for correctness (base-logger redaction is inherited); MAY pass the same `redact` for defense-in-depth
+- `apps/api/src/__tests__/*.test.ts` — new redaction test(s) proving secret header values never appear in serialized logs
+- No production dependency changes (pino/pino-http already installed). `package-lock.json` unaffected.
+
+### Verified Technical Placement (do not re-derive during implementation)
+Installed versions inspected: **pino 10.3.1**, **pino-http 11.0.0**.
+- `pino-http` derives its logger via `suppliedLogger.child({}, opts)`, and pino 10.x's `child()` honors `options.redact`. So `redact` works whether set on the base logger or passed to `pinoHttp(...)`.
+- **Authoritative location: the base Pino logger** (`lib/logger.ts`). Redaction is compiled once there and inherited by every child logger (including the `pino-http` child), guaranteeing coverage regardless of middleware wiring. This was empirically verified with a throwaway probe (since removed): `req.headers.cookie`, `req.headers.authorization`, and `res.headers["set-cookie"]` were replaced with `[Redacted]` while non-sensitive fields were preserved.
+
+### Redaction Configuration (approved)
+- Paths (matching pino-http's serialized shape): `req.headers.cookie`, `req.headers.authorization`, `res.headers["set-cookie"]`.
+- Censor placeholder: `[Redacted]`.
+- Paths centralized in one exported constant so future secret headers can be added in one place.
+
+### Implementation Boundaries
+- Do NOT implement authentication or session handling.
+- Do NOT add a production-only test route to exercise response redaction; use a testable approach that avoids adding production behavior (see Tests).
+- Do NOT log real tokens or cookies during tests; use synthetic values only.
+- Do NOT require access to any `.env` or credentials.
+- Do NOT modify unrelated AUTH-01 tasks.
+
+### Details
+1. Add `redact` to the base Pino logger in `lib/logger.ts` with the approved paths and censor; export the paths list as a named constant.
+2. Confirm `request-logger.ts` continues to log method, URL, status, response time, and request id.
+3. Add automated redaction tests (see below).
+
+### Tests (synthetic values only; no real tokens)
+Testable approaches that avoid adding a production route:
+- **Preferred:** Unit-test the logger by writing to a captured in-memory stream/destination, emit a log entry carrying a fake `req` with `cookie`/`authorization` headers and a fake `res` with a `set-cookie` header, and assert on the serialized output. (This is exactly how the placement was verified.)
+- **Or:** Integration-test via Supertest against the existing `GET /api/health` route with fake `Cookie`/`Authorization` request headers, capturing the logger output stream, and asserting redaction of request headers. Response `set-cookie` redaction is proven by the unit approach without needing a route that sets cookies.
+
+Assertions:
+- Fake cookie content never appears in serialized logs.
+- Fake authorization content never appears in serialized logs.
+- Fake response `set-cookie` content never appears in serialized logs.
+- The censor text (`[Redacted]`) appears where applicable.
+- Non-sensitive request metadata (method, url, statusCode, responseTime) remains present.
+
+### Verification Steps
+1. `npx eslint .` passes.
+2. Root typecheck passes.
+3. `npm test` runs the redaction tests and they pass; existing tests still pass.
+4. Manual/automated confirmation that a request carrying `Cookie`/`Authorization` produces logs with `[Redacted]` in place of those values.
+
+### Acceptance Criteria
+- [ ] Base Pino logger is configured with redaction covering `req.headers.cookie`, `req.headers.authorization`, `res.headers["set-cookie"]`
+- [ ] Serialized logs never contain the (synthetic) cookie, authorization, or response set-cookie values in tests
+- [ ] Censor placeholder appears where applicable
+- [ ] Method, URL, status code, and response time remain present in request logs
+- [ ] Redaction paths are centralized/maintainable for future secret headers
+- [ ] No authentication/session logic, no production-only test route, no new dependency, no real tokens logged
 
 ---
 
@@ -622,8 +703,9 @@ Execute a complete verification of the AUTH-01 foundation to confirm all require
 
 ### Status & Dependencies
 - **Partially executed.** TASK-12's non-database-dependent verification (install, lint, typecheck, tests, build, backend/frontend startup, frontend proxy, theme, responsive baseline, error handling, security headers, Git status) has been completed successfully and remains valid. That completed work is not erased or invalidated by TASK-12A.
-- **Depends on AUTH01-TASK-12A** (Database SSL Mode Configuration) for the remaining database-dependent verification, because clean-state database connectivity relies on the `DATABASE_SSL` configuration.
-- TASK-12 must **not be marked complete** until TASK-12A is implemented and checkpointed. After TASK-12A, TASK-12 resumes for the remaining database-dependent verification (step 7 health/connectivity against local PostgreSQL) plus any proportionate regression checks on the previously completed steps.
+- **Depends on AUTH01-TASK-12A** (Database SSL Mode Configuration, as amended for SSL-parameter rejection) for the remaining database-dependent verification, because clean-state database connectivity relies on the `DATABASE_SSL` configuration and the sole-authority rule.
+- **Depends on AUTH01-TASK-12B** (Request Log Secret Redaction), because the completed security posture requires secret headers to be redacted from logs before AUTH-01 can close.
+- TASK-12 must **not be marked complete** until BOTH TASK-12A and TASK-12B are implemented and checkpointed, the remaining local database-dependent verification passes, and proportionate regression checks on the previously completed steps pass. After 12A + 12B, TASK-12 resumes for the remaining database-dependent verification (step 7 health/connectivity against local PostgreSQL) and a log-redaction confirmation.
 - Live Neon connectivity verification is **deferred** to the separately authorized Neon migration/deployment stage and is not required to complete TASK-12 at this time.
 
 ### Affected Files
@@ -706,7 +788,12 @@ Execute a complete verification of the AUTH-01 foundation to confirm all require
 13. **Security headers:**
     - Verify: Helmet headers present in API responses
 
-14. **Git status:**
+14. **Log secret redaction (depends on AUTH01-TASK-12B):**
+    - Verify: a request carrying `Cookie`/`Authorization` headers produces logs where those values are `[Redacted]`, not the raw values.
+    - Verify: response `set-cookie` redaction is proven by TASK-12B tests.
+    - Verify: method, URL, status code, and response time remain present in logs.
+
+15. **Git status:**
     - Verify: no unintended files committed
     - Verify: `.env` is not tracked
     - Verify: `node_modules/` is not tracked
@@ -725,6 +812,7 @@ Execute a complete verification of the AUTH-01 foundation to confirm all require
 - [ ] Responsive viewport meta tag present; no horizontal overflow at mobile widths
 - [ ] Error handling returns standard format
 - [ ] Security headers present
+- [ ] Secret request/response headers (`cookie`, `authorization`, `set-cookie`) are redacted from logs (TASK-12B)
 - [ ] Git repository is clean (no unintended tracked files)
 - [ ] All requirements from requirements.md are satisfied
 
@@ -757,11 +845,13 @@ TASK-01: Root workspace config
     │
     ├── TASK-11: Documentation (depends on structure being final)
     │
-    ├── TASK-12A: Database SSL mode config (depends on TASK-03; blocks TASK-12)
+    ├── TASK-12A: Database SSL mode config + SSL-param rejection (depends on TASK-03; blocks TASK-12)
     │
-    └── TASK-12: Full verification (depends on all above, including TASK-12A)
+    ├── TASK-12B: Request log secret redaction (depends on TASK-04/05; blocks TASK-12)
+    │
+    └── TASK-12: Full verification (depends on all above, including TASK-12A and TASK-12B)
 ```
 
-Strict sequential execution order: 01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12A → 12 (final completion)
+Strict sequential execution order: 01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12A → 12B → 12 (final completion)
 
-Note: TASK-12A is an approved architecture correction (see D-008 and AUTH01-REQ-074..076) inserted after the original TASK-11. TASK-12 was already partially executed — its non-database-dependent verification completed successfully and remains valid. TASK-12A must be implemented and checkpointed before TASK-12 is marked complete; TASK-12 then resumes for the remaining database-dependent verification (against local PostgreSQL) and proportionate regression checks. Live Neon verification is deferred to the separately authorized Neon migration/deployment stage.
+Note: TASK-12A (see D-008/D-009, AUTH01-REQ-074..077) and TASK-12B (see D-010, AUTH01-REQ-078) are approved corrections inserted after the original TASK-11. TASK-12 was already partially executed — its non-database-dependent verification completed successfully and remains valid. Both TASK-12A and TASK-12B must be implemented and checkpointed before TASK-12 is marked complete; TASK-12 then resumes for the remaining database-dependent verification (against local PostgreSQL) plus a log-redaction confirmation and proportionate regression checks. TASK-12A and TASK-12B are independent of each other and may be implemented in either order. Live Neon verification is deferred to the separately authorized Neon migration/deployment stage.

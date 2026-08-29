@@ -328,7 +328,10 @@ NODE_ENV=development
 PORT=3001              # Standardized API port (frontend uses 5173 via Vite)
 
 # Database
-DATABASE_URL=postgresql://user:password@host.neon.tech/dbname?sslmode=require
+# Do NOT put SSL parameters (sslmode/sslcert/sslkey/sslrootcert) in DATABASE_URL.
+# SSL is controlled exclusively by DATABASE_SSL (see AUTH01-REQ-077). A URL
+# containing any SSL parameter fails fast.
+DATABASE_URL=postgresql://user:password@host.neon.tech/dbname
 
 # Database SSL mode: require | disable (default: require)
 #   require -> hosted PostgreSQL such as Neon (SSL enabled)
@@ -357,6 +360,31 @@ The `@pmocore/database` workspace owns and authoritatively validates the databas
 // database/src/config.ts  (configuration ownership lives in @pmocore/database)
 import { z } from 'zod';
 
+// SSL-control parameters that would compete with DATABASE_SSL as an authority.
+// pg (via pg-connection-string) honors these when present in the URL, which can
+// defeat an explicit `ssl` option — so their presence in DATABASE_URL is rejected.
+const PROHIBITED_SSL_PARAMS = ['sslmode', 'sslcert', 'sslkey', 'sslrootcert'];
+
+// Reject any DATABASE_URL that carries SSL-control parameters (case-insensitive).
+// This guarantees DATABASE_SSL is the sole SSL authority (AUTH01-REQ-075/077).
+// The error names only the offending key(s) — never the URL, host, credentials,
+// database name, or parameter values (secret-safe).
+function assertNoUrlSslParams(rawUrl: string): void {
+  const params = new URL(rawUrl).searchParams; // standard Node URL parsing; no new dependency
+  const offending = PROHIBITED_SSL_PARAMS.filter((key) => {
+    for (const name of params.keys()) {
+      if (name.toLowerCase() === key) return true;
+    }
+    return false;
+  });
+  if (offending.length > 0) {
+    throw new Error(
+      `DATABASE_URL must not contain SSL parameters: ${offending.join(', ')}. ` +
+        `SSL is controlled exclusively by DATABASE_SSL.`,
+    );
+  }
+}
+
 const dbEnvSchema = z.object({
   DATABASE_URL: z.string().url(),
   DATABASE_SSL: z.enum(['require', 'disable']).default('require'),
@@ -364,6 +392,8 @@ const dbEnvSchema = z.object({
 
 // Parse process.env; fail fast on invalid values (e.g. an unknown DATABASE_SSL).
 const dbEnv = dbEnvSchema.parse(process.env);
+// Fail fast if the URL tries to control SSL. No normalization/stripping is performed.
+assertNoUrlSslParams(dbEnv.DATABASE_URL);
 
 // Pure, unit-testable mapping from the validated enum to the pg SSL option.
 export function resolveSslOption(
@@ -439,6 +469,25 @@ Design rules:
 - SSL mode is determined **solely** by the validated `DATABASE_SSL` value. It is NOT inferred from `NODE_ENV`, the database hostname, local/production detection, or connection-string heuristics (AUTH01-REQ-075). This avoids coupling a security control to an easily-mislabeled environment name.
 - `require` retains `rejectUnauthorized: false`. This is **preserved existing behavior**, not a new decision. Stricter certificate verification for Neon (e.g., providing a proper CA and enabling `rejectUnauthorized: true`) remains a FUTURE CONSIDERATION and is out of scope for this correction.
 
+#### Sole SSL Authority — Prohibited Connection-String Parameters (AUTH01-REQ-077)
+
+Root cause discovered during TASK-12A verification: `pg` parses SSL-control query parameters from the connection string (via `pg-connection-string`). When present, those values populate the client SSL configuration and can **override or defeat** the explicit `ssl` option — so `DATABASE_SSL=disable` still attempted SSL because the URL carried `?sslmode=require`. The official node-postgres SSL guidance confirms that a connection string combined with an explicit `ssl` option must not include `sslmode`, `sslcert`, `sslkey`, or `sslrootcert`.
+
+To guarantee `DATABASE_SSL` is the sole authority, `@pmocore/database` config loading **rejects** (fails fast) any `DATABASE_URL` containing these parameters (case-insensitive):
+
+| Prohibited parameter | Reason |
+|----------------------|--------|
+| `sslmode` | Directly drives pg SSL negotiation |
+| `sslcert` | Client certificate path |
+| `sslkey` | Client key path |
+| `sslrootcert` | Root CA path (also switches verification mode) |
+
+Enforcement rules:
+- Approach: **Option A (reject)** — approved. No normalization, stripping, or silent rewriting of the URL is performed.
+- Detection uses standard Node `URL`/`URLSearchParams` parsing. **No new production dependency** is introduced.
+- Error behavior is secret-safe: the message MAY name offending parameter key(s) but MUST NOT include the complete URL, hostname, username, password, database name, or any parameter values.
+- Neon compatibility: standard Neon URLs are supported once `?sslmode=require` (or other SSL params) is removed and `DATABASE_SSL=require` is set or left to default.
+
 ### Neon-Specific Considerations
 
 - Neon requires SSL; hosted environments use `DATABASE_SSL=require` (or leave it unset, since `require` is the default).
@@ -496,15 +545,25 @@ A single Pino logger instance is created at application startup and used through
 import pino from 'pino';
 import { env } from '../config/env';
 
+// Redaction paths correspond to how pino-http serializes requests/responses:
+// the serialized request is nested under `req` (headers under `req.headers`)
+// and the response under `res` (headers under `res.headers`).
+export const REDACT_PATHS = [
+  'req.headers.cookie',
+  'req.headers.authorization',
+  'res.headers["set-cookie"]',
+];
+
 export const logger = pino({
   level: env.LOG_LEVEL,
+  redact: { paths: REDACT_PATHS, censor: '[Redacted]' },
   transport: env.NODE_ENV === 'development'
     ? { target: 'pino-pretty', options: { colorize: true } }
     : undefined,
 });
 ```
 
-### Request Logging
+### Request Logging & Secret Redaction (AUTH01-REQ-078)
 
 `pino-http` middleware logs every HTTP request/response with:
 
@@ -512,6 +571,17 @@ export const logger = pino({
 - Response status code
 - Response time in milliseconds
 - Request ID (auto-generated)
+
+**Security problem discovered during TASK-12A verification:** by default, `pino-http` serializes the full `req`/`res`, including all headers. This wrote the request `cookie` header (containing active session tokens from other localhost apps) into logs — a secret-exposure defect.
+
+**Verified redaction placement (pino 10.3.1, pino-http 11.0.0):** Redaction is configured on the **base Pino logger** in `lib/logger.ts` (the authoritative location). This was chosen and empirically verified because:
+
+- Redaction paths in pino are compiled when a logger's redaction is set; placing `redact` on the base logger guarantees it is compiled once and inherited by every child logger, including the child that `pino-http` derives from the supplied logger.
+- Empirical verification (a throwaway probe, since removed) confirmed that with these installed versions, `req.headers.cookie`, `req.headers.authorization`, and `res.headers["set-cookie"]` are replaced with `[Redacted]` while non-sensitive fields (method, url, statusCode, responseTime, `user-agent`, `content-type`) are preserved.
+
+**Note on `pino-http`'s `redact` option:** With the installed versions, `pino-http` forwards a `redact` option into `logger.child({}, opts)`, and pino 10.x's `child()` does honor `options.redact`. So configuring `redact` on either the base logger or the `pinoHttp(...)` call works today. To remain robust against internal serialization/child-option differences across versions, the **base logger is the authoritative location**; `request-logger.ts` may additionally pass the same `redact` config for defense-in-depth, but the base-logger configuration is what the specification requires. The requirement is behavioral: secret header values must never appear in serialized output, and this is proven by automated tests (see AUTH01-TASK-12B).
+
+Redaction coverage is centralized in `REDACT_PATHS` so future secret-bearing headers can be added in one place.
 
 ### Log Levels
 
@@ -883,3 +953,5 @@ This is a V1 deployment decision. It may be revisited later if scaling or operat
 | D-006 | Flat ESLint config (eslint.config.mjs) | Current ESLint standard | Approved (baseline) |
 | D-007 | Vitest over Jest | Faster, native ESM, Vite-aligned | Approved (baseline) |
 | D-008 | Explicit `DATABASE_SSL` enum (`require`\|`disable`, default `require`), owned/validated in `@pmocore/database` | Supports local non-SSL PostgreSQL and mandatory-SSL Neon with a secure default; no `NODE_ENV`/host inference; preserves Neon behavior. Chosen over sslmode-parsing, env-based, and forcing local SSL | Approved (correction — see AUTH01-TASK-12A) |
+| D-009 | Reject SSL-control params (`sslmode`/`sslcert`/`sslkey`/`sslrootcert`) in `DATABASE_URL` (Option A, fail-fast, secret-safe, no stripping) | Guarantees `DATABASE_SSL` is the sole SSL authority; `pg` otherwise honors URL SSL params and defeats the explicit `ssl` option. Standard Node URL parsing; no new dependency | Approved (correction — see AUTH01-TASK-12A amendment) |
+| D-010 | Redact `req.headers.cookie`, `req.headers.authorization`, `res.headers["set-cookie"]` on the base Pino logger | Default `pino-http` logs full headers, exposing session tokens. Base-logger redaction is compiled once and inherited by child loggers; empirically verified on pino 10.3.1 / pino-http 11.0.0. Behavioral requirement proven by tests | Approved (correction — see AUTH01-TASK-12B) |

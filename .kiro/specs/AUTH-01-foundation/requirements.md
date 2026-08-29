@@ -102,6 +102,19 @@ pmocore/
 
 **AUTH01-REQ-076** — The database connection configuration (including `DATABASE_SSL` validation) SHALL be owned and authoritatively validated within the `@pmocore/database` workspace, because that workspace creates the PostgreSQL connection pool and may be consumed independently of the API workspace.
 
+**AUTH01-REQ-077** — To guarantee that `DATABASE_SSL` is the sole SSL authority (AUTH01-REQ-075), the `DATABASE_URL` SHALL NOT contain any SSL-control connection-string parameter. The following parameters are prohibited, matched case-insensitively:
+- `sslmode`
+- `sslcert`
+- `sslkey`
+- `sslrootcert`
+
+Behavior:
+- A `DATABASE_URL` containing any prohibited SSL parameter SHALL cause a clear fail-fast validation error during `@pmocore/database` configuration loading.
+- The error message MAY name the offending parameter key(s). It SHALL NOT include the complete URL, hostname, username, password, database name, or any query-parameter values.
+- The system SHALL NOT normalize, strip, or silently rewrite the URL to remove SSL parameters. Rejection is explicit.
+- Standard hosted connection strings (e.g., Neon) remain supported once their SSL query parameter is removed and `DATABASE_SSL=require` is set (or allowed to default).
+- Enforcement SHALL use standard Node URL parsing; no new production dependency SHALL be introduced for this purpose.
+
 **AUTH01-REQ-021** — The database workspace SHALL include a Drizzle configuration file (`drizzle.config.ts`) ready for migration generation and execution.
 
 **AUTH01-REQ-022** — The `database/migrations/` directory SHALL exist and be ready to receive migration files (no tables are created in AUTH-01).
@@ -190,6 +203,17 @@ pmocore/
 **AUTH01-REQ-043** — In development mode, the backend SHOULD use `pino-pretty` for human-readable console output.
 
 **AUTH01-REQ-044** — Each HTTP request SHALL be logged with method, URL, status code, and response time using `pino-http` or equivalent middleware.
+
+**AUTH01-REQ-078** — Secret-bearing request and response headers SHALL be redacted before serialization to application logs. Redaction SHALL cover at minimum:
+- request `cookie`
+- request `authorization`
+- response `set-cookie`
+
+Behavior:
+- Redacted values SHALL be replaced with a configured censor placeholder (e.g., `[Redacted]`); the header keys MAY remain visible.
+- Useful, non-sensitive request logging SHALL be preserved, including HTTP method, URL, status code, response time, and other non-sensitive operational fields.
+- Redaction SHALL be configured at the authoritative location required to guarantee it is applied given the installed logger implementation (see design.md). The requirement is behavioral: secret header values MUST NOT appear in serialized log output, regardless of internal serializer paths.
+- The redaction coverage list SHALL be maintainable so additional secret headers can be added when future features introduce them.
 
 ---
 
