@@ -1,9 +1,10 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
+import { databaseConfig } from './config.js';
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }, // Neon requires SSL
+  connectionString: databaseConfig.connectionString,
+  ssl: databaseConfig.ssl,
   max: 10, // Connection pool size
 });
 

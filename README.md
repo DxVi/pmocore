@@ -54,10 +54,11 @@ Defined in `.env.example`:
 |---|---|
 | `NODE_ENV` | `development`, `production`, or `test`. Defaults to `development` if unset. |
 | `PORT` | Port the API listens on. Defaults to `3001`. The frontend dev server (Vite, port `5173`) proxies `/api` to a target that is currently hard-coded to `http://localhost:3001` in `apps/web/vite.config.ts` — it does not read `PORT` and will not follow it automatically. Keep `PORT` at `3001` for local development unless you deliberately update the proxy target in `apps/web/vite.config.ts` to match. |
-| `DATABASE_URL` | PostgreSQL connection string (Neon or otherwise). **Required** — the API fails to start without a syntactically valid URL here. |
+| `DATABASE_URL` | PostgreSQL connection string (Neon or otherwise), with **no SSL-control parameters** (`sslmode`, `sslcert`, `sslkey`, `sslrootcert`) — SSL is controlled exclusively by `DATABASE_SSL` below. **Required** — startup fails fast if the URL is syntactically invalid or contains any of those prohibited parameters (case-insensitive). The error names only the offending parameter key(s), never the full URL, hostname, credentials, or database name. |
+| `DATABASE_SSL` | `require` or `disable`. Defaults to `require` if unset — the secure default, and what Neon/other hosted PostgreSQL requiring SSL should use (explicitly or by leaving it unset). Use `disable` only for a local PostgreSQL server without SSL. Any other value fails validation at startup. This is validated and owned by `@pmocore/database`, not the API — SSL mode is never inferred from `NODE_ENV`, the database hostname, or parameters embedded in `DATABASE_URL` itself. |
 | `LOG_LEVEL` | Pino log level: `debug`, `info`, `warn`, or `error`. Defaults to `info`. |
 
-The API validates these at startup with a Zod schema (`apps/api/src/config/env.ts`) and exits immediately with a clear error if `DATABASE_URL` is missing or invalid — it does not start in a partially-configured state.
+`NODE_ENV`, `PORT`, and `LOG_LEVEL` are validated at API startup with a Zod schema in `apps/api/src/config/env.ts`. `DATABASE_URL` and `DATABASE_SSL` are validated separately, with a Zod schema owned by `@pmocore/database` (`database/src/config.ts`), since that package creates the PostgreSQL connection and may be consumed independently of the API. Either module exits immediately with a clear error on missing or invalid required configuration — the application never starts in a partially-configured state — and neither ever logs or exposes the configured values themselves.
 
 ## Available Scripts
 

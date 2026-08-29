@@ -48,7 +48,16 @@ export default tseslint.config(
         // repo's normal compiler options (e.g. Node ambient types) instead of
         // TypeScript's bare defaults.
         projectService: {
-          allowDefaultProject: ['database/drizzle.config.ts', 'packages/shared/vitest.config.ts'],
+          // database/tsconfig.json excludes test files from its own "src"
+          // include (see AUTH01-TASK-12A) so `tsc`'s real build never emits
+          // them into dist/; allowDefaultProject keeps them type-aware linted
+          // via the lightweight default-project fallback instead.
+          allowDefaultProject: [
+            'database/drizzle.config.ts',
+            'database/vitest.config.ts',
+            'database/src/__tests__/*.test.ts',
+            'packages/shared/vitest.config.ts',
+          ],
           defaultProject: 'tsconfig.base.json',
         },
         tsconfigRootDir: import.meta.dirname,
