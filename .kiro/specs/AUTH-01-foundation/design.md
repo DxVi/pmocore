@@ -819,6 +819,16 @@ The root `dev` script uses a tool like `concurrently` to run both servers simult
 [api] API server running on http://localhost:3001
 ```
 
+### Clean-State Development Resolution (D-011)
+
+Development must work from a clean checkout with no generated workspace `dist/` directories, without a prerequisite build.
+
+- **API:** the `apps/api` `dev` script runs `tsx watch --tsconfig tsconfig.typecheck.json src/index.ts`. The tsconfig path is **workspace-relative** because npm runs the workspace script with `apps/api` as the working directory (the same reason the API loads `apps/api/.env`); a root-relative `apps/api/tsconfig.typecheck.json` would incorrectly resolve toward `apps/api/apps/api/...`. That tsconfig (referred to in prose by its repository path `apps/api/tsconfig.typecheck.json`) maps `@pmocore/shared` and `@pmocore/database` to their `src` entry points, so `tsx` resolves internal packages from source at runtime — no `dist` needed. Saving an imported `database/src` file triggers a watch restart. This mirrors the existing lint/typecheck source mapping; it does not add a build, watcher, gate, or dependency.
+- **Web:** no change. `apps/web/vite.config.ts` keeps only the `@`→`src` alias. Web has only type-only `@pmocore/shared` imports (erased at compile time, no runtime resolution), so no Vite alias is added. Adding an unconditional alias would also affect production builds and would be speculative.
+- **Production is unaffected:** `npm run build` and `npm start -w apps/api` continue to use each workspace's real build config (`apps/api/tsconfig.json`) and resolve internal packages through compiled `dist/` entry points. The `tsconfig.typecheck.json` is used only for lint, typecheck, and API dev — never for the production build.
+- **Empirical gate:** `tsx --tsconfig` runtime path resolution and external-source watch behavior are treated as unproven until verified during AUTH01-TASK-12C. If either fails, implementation stops and raises `ARCHITECTURAL DECISION REQUIRED` rather than silently adding a prebuild/watch-orchestration fallback.
+- **Future web runtime import:** if a later authorized task introduces a web runtime import from an internal workspace package, that task must define an explicitly development-only resolution strategy (or update this design) rather than an unconditional Vite alias.
+
 ---
 
 ## 13. Build Flow
@@ -955,3 +965,4 @@ This is a V1 deployment decision. It may be revisited later if scaling or operat
 | D-008 | Explicit `DATABASE_SSL` enum (`require`\|`disable`, default `require`), owned/validated in `@pmocore/database` | Supports local non-SSL PostgreSQL and mandatory-SSL Neon with a secure default; no `NODE_ENV`/host inference; preserves Neon behavior. Chosen over sslmode-parsing, env-based, and forcing local SSL | Approved (correction — see AUTH01-TASK-12A) |
 | D-009 | Reject SSL-control params (`sslmode`/`sslcert`/`sslkey`/`sslrootcert`) in `DATABASE_URL` (Option A, fail-fast, secret-safe, no stripping) | Guarantees `DATABASE_SSL` is the sole SSL authority; `pg` otherwise honors URL SSL params and defeats the explicit `ssl` option. Standard Node URL parsing; no new dependency | Approved (correction — see AUTH01-TASK-12A amendment) |
 | D-010 | Redact `req.headers.cookie`, `req.headers.authorization`, `res.headers["set-cookie"]` on the base Pino logger | Default `pino-http` logs full headers, exposing session tokens. Base-logger redaction is compiled once and inherited by child loggers; empirically verified on pino 10.3.1 / pino-http 11.0.0. Behavioral requirement proven by tests | Approved (correction — see AUTH01-TASK-12B) |
+| D-011 | API development runs `tsx watch --tsconfig tsconfig.typecheck.json` (workspace-relative, run from the `apps/api` cwd), resolving `@pmocore/shared`/`@pmocore/database` from source; production build/start unchanged (compiled `dist`). Web Vite config NOT given an unconditional internal-workspace alias | Enables clean-state `npm run dev` with no prerequisite build/watcher/gate/dependency. Web has only type-only shared imports, so a Vite runtime alias would be speculative and would also affect production. Subject to an empirical validation gate | Approved (correction — see AUTH01-TASK-12C) |

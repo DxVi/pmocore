@@ -696,6 +696,99 @@ Assertions:
 
 ---
 
+## AUTH01-TASK-12C: Clean-State Development Startup
+
+### Objective
+Make `npm run dev` work from a clean checkout that has no generated workspace `dist/` directories, without a prerequisite build. The API development runtime must resolve `@pmocore/shared` and `@pmocore/database` from source using the existing source mappings; production build/start resolution remains unchanged (compiled `dist`). The web application is verified to start cleanly but is not modified unless an actual current failure is empirically proven.
+
+This corrects a defect where `npm run dev -w apps/api` fails with `ERR_MODULE_NOT_FOUND` on a clean, `dist`-less checkout because the current API dev command (`tsx watch src/index.ts`) resolves internal workspace packages via node resolution to their (nonexistent) `dist` output.
+
+### Requirements Covered
+- AUTH01-REQ-079 (clean-state development startup; API source resolution; production unaffected; web verify-only)
+- AUTH01-REQ-056 (root `npm run dev` starts API and web concurrently)
+
+### Dependencies
+- Depends on AUTH01-TASK-04 (backend), AUTH01-TASK-06 (frontend), and AUTH01-TASK-10 (root development workflow, which established `apps/api/tsconfig.typecheck.json` and its internal source mappings). These are implemented and checkpointed.
+- Independent of TASK-12A and TASK-12B. **Blocks final completion of AUTH01-TASK-12.**
+
+### Approved Architectural Direction (D-011)
+- Use the existing API development/typecheck source mappings in `apps/api/tsconfig.typecheck.json`.
+- Update the API `dev` command to run `tsx watch` with that tsconfig. npm executes the `apps/api` workspace script with `apps/api` as the working directory (already established by the API loading `apps/api/.env`), so the package-script value MUST use the **workspace-relative** path:
+  `tsx watch --tsconfig tsconfig.typecheck.json src/index.ts`
+  (Do NOT use `--tsconfig apps/api/tsconfig.typecheck.json` in the package script — from the `apps/api` cwd that would resolve toward a duplicated `apps/api/apps/api/...` path. The repository-path form `apps/api/tsconfig.typecheck.json` is used only in prose to identify the file.)
+- No prerequisite build, additional watcher, startup gate, or new dependency is approved.
+- Production build/start resolution is unchanged and continues to use compiled workspace `dist` entry points.
+
+### Exact Affected Files
+- `apps/api/package.json` — update the `dev` script only, to `tsx watch --tsconfig tsconfig.typecheck.json src/index.ts` (workspace-relative path, since the script runs with `apps/api` as cwd). No other script changes.
+- `README.md` — accurate clean-state development notes (see Documentation below).
+- `apps/web/vite.config.ts` — **NOT modified** unless empirical testing proves an actual current web startup failure from a `dist`-less state (see Web Scope Limitation).
+
+### Web Scope Limitation
+- Do NOT add an unconditional `@pmocore/shared` (or any internal-workspace) alias to `apps/web/vite.config.ts`. Vite config applies to both development and production; an unconditional alias would affect production resolution and is speculative because web currently has only type-only `@pmocore/shared` imports (erased at compile time, no runtime resolution).
+- TASK-12C only requires verifying that web dev startup works from a clean, `dist`-less state.
+- If a future authorized task introduces a web runtime import from an internal workspace package, that task must define an explicitly development-only resolution strategy or update the approved design.
+
+### Empirical Validation Gate (MANDATORY)
+The `tsx --tsconfig` runtime path resolution and external-source watch behavior are NOT yet proven. Before treating the approach as successful, the implementer MUST empirically verify:
+1. From a `dist`-less state, `npm run dev -w apps/api` starts without `ERR_MODULE_NOT_FOUND` and the API resolves `@pmocore/database`/`@pmocore/shared` from source.
+2. Saving an imported `database/src` source file while API watch mode is running triggers a restart/reload reflecting the change.
+
+If EITHER check fails, the implementer MUST:
+- stop;
+- restore any temporary verification edit exactly;
+- report `ARCHITECTURAL DECISION REQUIRED`;
+- NOT silently implement a fallback prebuild or watch-orchestration.
+
+### Temporary Watch Verification Safeguards
+Any temporary source edit used to prove watch behavior MUST:
+- be made only after confirming the working tree is clean;
+- contain no functional/business change;
+- be restored exactly (verified by before/after hash or diff);
+- leave no persistent file modification;
+- not modify specifications;
+- not create a commit.
+
+### Implementation Boundaries
+- Change ONLY the API `dev` script (and README) unless the empirical web check proves a real failure.
+- Do NOT add a prerequisite build, extra watcher, startup gate, or new dependency.
+- Do NOT modify production build/start behavior or `apps/api/tsconfig.json`.
+- Do NOT add an unconditional Vite alias.
+- Do NOT create production functionality solely to test a shared runtime import (shared imports are currently type-only).
+- Do NOT modify unrelated AUTH-01 tasks.
+- Do NOT access `.env`, credentials, cookies, or tokens.
+
+### Documentation (README)
+Update README only to state accurately:
+- a clean install followed by `npm run dev` needs no manual workspace build;
+- API development resolves `database`/`shared` packages from source;
+- imported `database` source changes are picked up by API watch mode;
+- production continues using compiled workspace outputs.
+Do NOT claim web runtime shared-package hot reload — no such runtime consumer currently exists.
+
+### Verification Steps
+1. Confirm a clean, `dist`-less state (remove any generated `dist/` locally for the test; do not commit).
+2. `npm run dev -w apps/api` starts without `ERR_MODULE_NOT_FOUND` (empirical gate #1).
+3. Root `npm run dev` starts both API and web without a prerequisite build.
+4. Temporary watch check: edit an imported `database/src` file (safeguarded), confirm API watch reload, restore exactly (empirical gate #2).
+5. `npm run build` then `npm start -w apps/api` still work, resolving packages via compiled `dist`.
+6. `npx eslint .` and root typecheck still pass.
+7. Web dev startup verified clean; `apps/web/vite.config.ts` unchanged (unless a real failure was proven and reported).
+
+### Acceptance Criteria
+- [ ] `npm run dev -w apps/api` starts from a `dist`-less checkout without `ERR_MODULE_NOT_FOUND`
+- [ ] Root `npm run dev` starts API and web with no prerequisite build
+- [ ] API development resolves `@pmocore/shared`/`@pmocore/database` from source via `apps/api/tsconfig.typecheck.json`
+- [ ] Saving an imported `database/src` file triggers API watch reload (empirically verified)
+- [ ] Production `npm run build` and `npm start -w apps/api` still resolve via compiled `dist` (unchanged)
+- [ ] No prerequisite build, extra watcher, startup gate, or new dependency added
+- [ ] `apps/web/vite.config.ts` unchanged (no unconditional alias) unless a real current failure was proven and reported
+- [ ] README accurately describes clean-state dev; no false web hot-reload claim
+- [ ] Any temporary watch-verification edit was restored exactly (hash/diff verified); no persistent change; no commit
+- [ ] If either empirical gate failed: implementation stopped and reported `ARCHITECTURAL DECISION REQUIRED` (no silent fallback)
+
+---
+
 ## AUTH01-TASK-12: Full Foundation Verification
 
 ### Objective
@@ -705,7 +798,8 @@ Execute a complete verification of the AUTH-01 foundation to confirm all require
 - **Partially executed.** TASK-12's non-database-dependent verification (install, lint, typecheck, tests, build, backend/frontend startup, frontend proxy, theme, responsive baseline, error handling, security headers, Git status) has been completed successfully and remains valid. That completed work is not erased or invalidated by TASK-12A.
 - **Depends on AUTH01-TASK-12A** (Database SSL Mode Configuration, as amended for SSL-parameter rejection) for the remaining database-dependent verification, because clean-state database connectivity relies on the `DATABASE_SSL` configuration and the sole-authority rule.
 - **Depends on AUTH01-TASK-12B** (Request Log Secret Redaction), because the completed security posture requires secret headers to be redacted from logs before AUTH-01 can close.
-- TASK-12 must **not be marked complete** until BOTH TASK-12A and TASK-12B are implemented and checkpointed, the remaining local database-dependent verification passes, and proportionate regression checks on the previously completed steps pass. After 12A + 12B, TASK-12 resumes for the remaining database-dependent verification (step 7 health/connectivity against local PostgreSQL) and a log-redaction confirmation.
+- **Depends on AUTH01-TASK-12C** (Clean-State Development Startup), because final verification includes a clean-state development-workflow check (`npm run dev` from a `dist`-less checkout).
+- TASK-12 must **not be marked complete** until ALL of TASK-12A, TASK-12B, and TASK-12C are implemented and checkpointed, the remaining local database-dependent verification passes, the clean-state development-workflow regression passes, and proportionate regression checks on the previously completed steps pass. After 12A + 12B + 12C, TASK-12 resumes for: the remaining database-dependent verification (step 7 health/connectivity against local PostgreSQL), a log-redaction confirmation, and a clean-state `npm run dev` regression.
 - Live Neon connectivity verification is **deferred** to the separately authorized Neon migration/deployment stage and is not required to complete TASK-12 at this time.
 
 ### Affected Files
@@ -793,7 +887,12 @@ Execute a complete verification of the AUTH-01 foundation to confirm all require
     - Verify: response `set-cookie` redaction is proven by TASK-12B tests.
     - Verify: method, URL, status code, and response time remain present in logs.
 
-15. **Git status:**
+15. **Clean-state development workflow (depends on AUTH01-TASK-12C):**
+    - From a `dist`-less checkout, `npm run dev -w apps/api` starts without `ERR_MODULE_NOT_FOUND`.
+    - Root `npm run dev` starts API and web with no prerequisite build.
+    - API resolves `@pmocore/shared`/`@pmocore/database` from source in development; production build/start still resolve via compiled `dist`.
+
+16. **Git status:**
     - Verify: no unintended files committed
     - Verify: `.env` is not tracked
     - Verify: `node_modules/` is not tracked
@@ -813,6 +912,7 @@ Execute a complete verification of the AUTH-01 foundation to confirm all require
 - [ ] Error handling returns standard format
 - [ ] Security headers present
 - [ ] Secret request/response headers (`cookie`, `authorization`, `set-cookie`) are redacted from logs (TASK-12B)
+- [ ] Clean-state `npm run dev` starts API and web from a `dist`-less checkout with no prerequisite build (TASK-12C)
 - [ ] Git repository is clean (no unintended tracked files)
 - [ ] All requirements from requirements.md are satisfied
 
@@ -849,9 +949,11 @@ TASK-01: Root workspace config
     │
     ├── TASK-12B: Request log secret redaction (depends on TASK-04/05; blocks TASK-12)
     │
-    └── TASK-12: Full verification (depends on all above, including TASK-12A and TASK-12B)
+    ├── TASK-12C: Clean-state development startup (depends on TASK-04/06/10; reuses TASK-10's tsconfig.typecheck.json source mappings; blocks TASK-12)
+    │
+    └── TASK-12: Full verification (depends on all above, including TASK-12A, TASK-12B, and TASK-12C)
 ```
 
-Strict sequential execution order: 01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12A → 12B → 12 (final completion)
+Strict sequential execution order: 01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12A → 12B → 12C → 12 (final completion)
 
-Note: TASK-12A (see D-008/D-009, AUTH01-REQ-074..077) and TASK-12B (see D-010, AUTH01-REQ-078) are approved corrections inserted after the original TASK-11. TASK-12 was already partially executed — its non-database-dependent verification completed successfully and remains valid. Both TASK-12A and TASK-12B must be implemented and checkpointed before TASK-12 is marked complete; TASK-12 then resumes for the remaining database-dependent verification (against local PostgreSQL) plus a log-redaction confirmation and proportionate regression checks. TASK-12A and TASK-12B are independent of each other and may be implemented in either order. Live Neon verification is deferred to the separately authorized Neon migration/deployment stage.
+Note: TASK-12A (see D-008/D-009, AUTH01-REQ-074..077), TASK-12B (see D-010, AUTH01-REQ-078), and TASK-12C (see D-011, AUTH01-REQ-079) are approved corrections inserted after the original TASK-11. TASK-12 was already partially executed — its non-database-dependent verification completed successfully and remains valid. All three (12A, 12B, 12C) must be implemented and checkpointed before TASK-12 is marked complete; TASK-12 then resumes for the remaining database-dependent verification (against local PostgreSQL), a log-redaction confirmation, and a clean-state `npm run dev` regression, plus proportionate regression checks. TASK-12A, TASK-12B, and TASK-12C are independent of each other and may be implemented in any order (TASK-12C reuses the `apps/api/tsconfig.typecheck.json` source mappings established by TASK-10's root development workflow, not TASK-12A). Live Neon verification is deferred to the separately authorized Neon migration/deployment stage.

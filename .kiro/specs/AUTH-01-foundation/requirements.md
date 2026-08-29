@@ -255,6 +255,14 @@ Behavior:
 
 **AUTH01-REQ-056** — `npm run dev` SHALL start both the frontend dev server and backend dev server concurrently.
 
+**AUTH01-REQ-079** — Development startup SHALL work from a clean checkout that has no generated workspace `dist/` directories, without requiring a prerequisite build step, an additional watcher, a startup gate, or a new dependency.
+- `npm run dev -w apps/api` SHALL start without `ERR_MODULE_NOT_FOUND`.
+- Root `npm run dev` SHALL start the API and web without a prerequisite build.
+- In development, the API SHALL resolve internal workspace packages (`@pmocore/shared`, `@pmocore/database`) from source, using the existing source mappings in `apps/api/tsconfig.typecheck.json`.
+- While API watch mode is running, saving an imported `database/src` source file SHALL trigger a restart/reload reflecting the change. (Shared imports are currently type-only; a runtime shared import, if introduced later, SHALL behave equivalently — but no production functionality SHALL be created solely to test this.)
+- Production build and `npm start -w apps/api` SHALL be unaffected and SHALL continue resolving internal workspace packages through their compiled `dist/` entry points.
+- The web application SHALL be verified to start cleanly from a `dist`-less state. `apps/web/vite.config.ts` SHALL NOT receive an unconditional internal-workspace alias (which would also affect production builds); web currently has only type-only `@pmocore/shared` imports that require no runtime resolution.
+
 **AUTH01-REQ-057** — `npm run build` SHALL produce production-ready artifacts for both frontend and backend.
 
 **AUTH01-REQ-058** — `npm run lint` SHALL run ESLint across all workspaces.
