@@ -1,14 +1,30 @@
 import type { RouteObject } from 'react-router-dom';
-import { ModulePlaceholder } from '@/components/layout/ModulePlaceholder';
 
 /**
- * Requirements routes — registered by PKG-1, implemented by PKG-3 inside this directory
- * (tasks.md §3.3). Paths are relative to /projects/:projectId. Pages read the
- * current project with useCurrentProject().
+ * Requirements routes (PKG-3). Paths are relative to /projects/:projectId.
+ * Pages are loaded on demand to keep the phone start-up payload small.
  */
 export const requirementsRoutes: RouteObject[] = [
   {
-    path: 'requirements/*',
-    element: <ModulePlaceholder title="Requirements" requirementRange="REQ-024–028" />,
+    path: 'requirements',
+    lazy: async () => ({
+      Component: (await import('./RequirementsListPage')).RequirementsListPage,
+    }),
+  },
+  {
+    path: 'requirements/new',
+    lazy: async () => ({
+      Component: (await import('./RequirementFormPage')).RequirementCreatePage,
+    }),
+  },
+  {
+    path: 'requirements/:recordId',
+    lazy: async () => ({
+      Component: (await import('./RequirementDetailPage')).RequirementDetailPage,
+    }),
+  },
+  {
+    path: 'requirements/:recordId/edit',
+    lazy: async () => ({ Component: (await import('./RequirementFormPage')).RequirementEditPage }),
   },
 ];

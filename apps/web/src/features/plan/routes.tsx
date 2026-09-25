@@ -1,14 +1,24 @@
 import type { RouteObject } from 'react-router-dom';
-import { ModulePlaceholder } from '@/components/layout/ModulePlaceholder';
 
 /**
- * Project Plan routes — registered by PKG-1, implemented by PKG-3 inside this directory
- * (tasks.md §3.3). Paths are relative to /projects/:projectId. Pages read the
- * current project with useCurrentProject().
+ * Project Plan routes (PKG-3). Paths are relative to /projects/:projectId.
+ * Pages are loaded on demand to keep the phone start-up payload small.
  */
 export const planRoutes: RouteObject[] = [
   {
-    path: 'plan/*',
-    element: <ModulePlaceholder title="Project Plan" requirementRange="REQ-019–023" />,
+    path: 'plan',
+    lazy: async () => ({ Component: (await import('./WorkItemsListPage')).WorkItemsListPage }),
+  },
+  {
+    path: 'plan/new',
+    lazy: async () => ({ Component: (await import('./WorkItemFormPage')).WorkItemCreatePage }),
+  },
+  {
+    path: 'plan/:recordId',
+    lazy: async () => ({ Component: (await import('./WorkItemDetailPage')).WorkItemDetailPage }),
+  },
+  {
+    path: 'plan/:recordId/edit',
+    lazy: async () => ({ Component: (await import('./WorkItemFormPage')).WorkItemEditPage }),
   },
 ];
