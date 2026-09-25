@@ -25,10 +25,12 @@ export const envSchema = z
     SESSION_IDLE_DAYS: positiveInt(7),
     SESSION_ABSOLUTE_DAYS: positiveInt(30),
 
-    ATTACHMENT_STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
+    ATTACHMENT_STORAGE_DRIVER: z.enum(['local', 's3', 'postgres']).default('local'),
     ATTACHMENT_STORAGE_DIR: z.string().default('./.data/attachments'),
     ATTACHMENT_MAX_BYTES: positiveInt(10_485_760),
     ATTACHMENT_PURGE_DAYS: positiveInt(30),
+    // postgres driver only: cap on stored content, well below the database plan's storage limit.
+    ATTACHMENT_DB_QUOTA_MB: positiveInt(300),
 
     S3_ENDPOINT: z.string().url().optional(),
     S3_REGION: z.string().default('auto'),

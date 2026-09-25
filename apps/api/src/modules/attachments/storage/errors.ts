@@ -5,3 +5,11 @@ export class StorageObjectNotFoundError extends Error {
     this.name = 'StorageObjectNotFoundError';
   }
 }
+
+/** Storing the object would exceed the configured storage capacity (postgres driver). */
+export class StorageQuotaExceededError extends Error {
+  constructor() {
+    super('Attachment storage quota exceeded');
+    this.name = 'StorageQuotaExceededError';
+  }
+}

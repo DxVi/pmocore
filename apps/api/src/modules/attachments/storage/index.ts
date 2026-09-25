@@ -1,5 +1,7 @@
+import { pool } from '@pmocore/database';
 import { env } from '../../../config/env.js';
 import { LocalFsStorage } from './local-fs-storage.js';
+import { PostgresStorage } from './postgres-storage.js';
 import { S3Storage } from './s3-storage.js';
 import type { AttachmentStorage } from './storage.js';
 
@@ -16,6 +18,9 @@ function createStorage(): AttachmentStorage {
       secretAccessKey: env.S3_SECRET_ACCESS_KEY ?? '',
       forcePathStyle: env.S3_FORCE_PATH_STYLE,
     });
+  }
+  if (env.ATTACHMENT_STORAGE_DRIVER === 'postgres') {
+    return new PostgresStorage(pool, { quotaBytes: env.ATTACHMENT_DB_QUOTA_MB * 1_048_576 });
   }
   return new LocalFsStorage(env.ATTACHMENT_STORAGE_DIR);
 }

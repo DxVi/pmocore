@@ -60,6 +60,7 @@ describe.skipIf(!url)('database schema (integration, local PostgreSQL test DB)',
     expect(rows.map((r) => r.table_name)).toEqual([
       'acceptances',
       'activities',
+      'attachment_content_chunks',
       'attachments',
       'defects',
       'documents',

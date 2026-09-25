@@ -8,6 +8,13 @@
       "when": 1790323334806,
       "tag": "0000_solo_mvp_initial",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790342811973,
+      "tag": "0001_attachment_content_chunks",
+      "breakpoints": true
     }
   ]
 }

@@ -14,7 +14,7 @@ import { AppError } from '../../lib/app-error.js';
 import { logger } from '../../lib/logger.js';
 import { checkFile, sanitizeFileName } from './file-policy.js';
 import { getAttachmentStorage } from './storage/index.js';
-import { StorageObjectNotFoundError } from './storage/errors.js';
+import { StorageObjectNotFoundError, StorageQuotaExceededError } from './storage/errors.js';
 import { buildStorageKey } from './storage/storage.js';
 
 type AttachmentRow = typeof attachments.$inferSelect;
@@ -129,7 +129,19 @@ export async function uploadAttachment(
   const id = randomUUID();
   const key = buildStorageKey(projectId, id);
   const storage = getAttachmentStorage();
-  await storage.put(key, file.buffer, check.type.contentType);
+  try {
+    await storage.put(key, file.buffer, check.type.contentType);
+  } catch (err) {
+    if (err instanceof StorageQuotaExceededError) {
+      logger.warn({ attachmentId: id }, 'Attachment storage quota reached');
+      throw new AppError(
+        507,
+        'STORAGE_FULL',
+        'Attachment storage is full. Remove unneeded files or ask the administrator to free space.',
+      );
+    }
+    throw err;
+  }
 
   try {
     const row = await db.transaction(async (tx) => {
@@ -248,7 +260,11 @@ export async function removeAttachment(projectId: string, id: string, actorId: s
   });
 }
 
-/** Deletes stored objects of attachments removed more than `retentionDays` ago. */
+/**
+ * Deletes stored objects of attachments removed more than `retentionDays` ago.
+ * Only rows stored by the configured driver are purged, so running the command
+ * with the wrong driver cannot mark files purged while their content remains.
+ */
 export async function purgeDeletedAttachments(
   retentionDays = env.ATTACHMENT_PURGE_DAYS,
   now = new Date(),
@@ -263,6 +279,7 @@ export async function purgeDeletedAttachments(
         isNotNull(attachments.deletedAt),
         isNull(attachments.purgedAt),
         lt(attachments.deletedAt, cutoff),
+        eq(attachments.storageDriver, storage.driver),
       ),
     );
 

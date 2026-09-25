@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import { sql } from 'drizzle-orm';
-import { db } from '@pmocore/database';
+import { db, pool } from '@pmocore/database';
 import {
   ATTACHMENT_MESSAGES,
   type ActivityDetail,
@@ -22,10 +22,23 @@ import {
 } from '../../../__tests__/setup/helpers.js';
 import { purgeDeletedAttachments } from '../attachments.service.js';
 import { getAttachmentStorage, setAttachmentStorage } from '../storage/index.js';
+import { PostgresStorage } from '../storage/postgres-storage.js';
 import type { AttachmentStorage } from '../storage/storage.js';
 import { FIXTURES } from './fixtures.js';
 
-describe.skipIf(!hasTestDatabase)('attachments (integration)', () => {
+// The full behaviour suite runs against every driver usable without cloud services.
+const DRIVERS = [
+  { name: 'local', create: (): AttachmentStorage | undefined => undefined },
+  {
+    name: 'postgres',
+    create: (): AttachmentStorage | undefined =>
+      new PostgresStorage(pool, { quotaBytes: 64 * 1_048_576 }),
+  },
+];
+
+const eachDriver = describe.skipIf(!hasTestDatabase).each(DRIVERS);
+
+eachDriver('attachments (integration, $name storage)', ({ create }) => {
   let agent: Agent;
   let project: Project;
   let activity: ActivityDetail;
@@ -58,6 +71,7 @@ describe.skipIf(!hasTestDatabase)('attachments (integration)', () => {
       recursive: true,
       force: true,
     });
+    setAttachmentStorage(create());
     await createUser();
     agent = await login(createApp());
     project = body<Project>(

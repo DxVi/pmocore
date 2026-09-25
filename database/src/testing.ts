@@ -39,7 +39,7 @@ export async function truncateTestData(connectionString: string): Promise<void> 
   await client.connect();
   try {
     await client.query(`
-      TRUNCATE TABLE attachments, release_defects, release_requirements, acceptances, documents,
+      TRUNCATE TABLE attachment_content_chunks, attachments, release_defects, release_requirements, acceptances, documents,
         defects, test_cases, raid_items, activities, requirement_work_items, requirements,
         work_items, releases, record_counters, projects, session, users
       RESTART IDENTITY CASCADE`);
