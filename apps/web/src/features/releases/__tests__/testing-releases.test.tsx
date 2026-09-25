@@ -130,9 +130,9 @@ describe('Release detail', () => {
 
     const history = screen.getByRole('list', { name: 'Acceptance history (newest first)' });
     const entries = within(history).getAllByRole('listitem');
-    expect(within(entries[0]!).getByText('ACC-002')).toBeInTheDocument();
-    expect(within(entries[0]!).getByText('Current')).toBeInTheDocument();
-    expect(within(entries[1]!).getByText('Font too small')).toBeInTheDocument();
+    expect(within(entries[0]).getByText('ACC-002')).toBeInTheDocument();
+    expect(within(entries[0]).getByText('Current')).toBeInTheDocument();
+    expect(within(entries[1]).getByText('Font too small')).toBeInTheDocument();
   });
 
   it('saves the requirement scope with notes', async () => {
