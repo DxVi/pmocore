@@ -1,3 +1,5 @@
+import { rmSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import { sql } from 'drizzle-orm';
@@ -51,6 +53,11 @@ describe.skipIf(!hasTestDatabase)('attachments (integration)', () => {
 
   beforeEach(async () => {
     await resetData();
+    // Keep the local test storage in step with the truncated database (no orphans).
+    rmSync(resolve(process.env.ATTACHMENT_STORAGE_DIR ?? './.data/test-attachments'), {
+      recursive: true,
+      force: true,
+    });
     await createUser();
     agent = await login(createApp());
     project = body<Project>(
