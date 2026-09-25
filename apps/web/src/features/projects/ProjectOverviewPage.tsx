@@ -8,8 +8,22 @@ import { EmptyState, QueryState } from '@/components/QueryState';
 import { errorMessage } from '@/lib/errors';
 import { StatusBadge } from '@/components/StatusBadge';
 import { formatDate, formatDateTime, formatRelative } from '@/lib/format';
+import { useProjectMetrics } from '@/features/dashboard/api';
+import { MetricsView } from '@/features/dashboard/MetricsView';
 import { useProjectOverview, useSetProjectArchived } from './api';
 import { useCurrentProject } from './project-context';
+
+/** Module route for each recent-activity record type (acceptances open with their release). */
+const ACTIVITY_ROUTES: Partial<Record<RecentActivityItem['type'], string>> = {
+  workItem: 'plan',
+  requirement: 'requirements',
+  activity: 'meetings',
+  raidItem: 'raid',
+  testCase: 'testing/tests',
+  defect: 'testing/defects',
+  release: 'releases',
+  document: 'documents',
+};
 
 const ACTIVITY_LABELS: Record<RecentActivityItem['type'], string> = {
   project: 'Project',
@@ -36,6 +50,7 @@ function Detail({ label, children }: { label: string; children: ReactNode }) {
 export function ProjectOverviewPage() {
   const project = useCurrentProject();
   const overview = useProjectOverview(project.id);
+  const metrics = useProjectMetrics(project.id);
   const setArchived = useSetProjectArchived(project.id);
   const [confirming, setConfirming] = useState(false);
   const archived = Boolean(project.archivedAt);
@@ -69,6 +84,23 @@ export function ProjectOverviewPage() {
           {archived ? 'Unarchive' : 'Archive'}
         </button>
       </div>
+
+      <section className="card mb-4" aria-labelledby="project-metrics-heading">
+        <div className="card-body">
+          <h2 id="project-metrics-heading" className="h5 mb-3">
+            Status at a glance
+          </h2>
+          <QueryState
+            isLoading={metrics.isLoading}
+            error={metrics.error}
+            onRetry={() => void metrics.refetch()}
+          >
+            {metrics.data && (
+              <MetricsView metrics={metrics.data} base={`/projects/${project.id}`} />
+            )}
+          </QueryState>
+        </div>
+      </section>
 
       <div className="row g-4">
         <div className="col-lg-8">
@@ -138,7 +170,15 @@ export function ProjectOverviewPage() {
                         <div className="small text-secondary">
                           {ACTIVITY_LABELS[item.type]} · {item.code}
                         </div>
-                        <div className="text-break">{item.title}</div>
+                        <div className="text-break">
+                          {ACTIVITY_ROUTES[item.type] ? (
+                            <Link to={`${ACTIVITY_ROUTES[item.type]}/${item.id}`}>
+                              {item.title}
+                            </Link>
+                          ) : (
+                            item.title
+                          )}
+                        </div>
                         <div
                           className="small text-secondary"
                           title={formatDateTime(item.updatedAt)}

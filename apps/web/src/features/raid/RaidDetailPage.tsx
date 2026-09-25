@@ -120,14 +120,22 @@ export function RaidDetailPage() {
             <Detail label="Requirement">
               <DerivedValue
                 value={item.requirement}
-                render={(r) => `${r.code} · ${r.title}`}
+                render={(r) => (
+                  <Link to={`../../requirements/${r.id}`} relative="path">
+                    {r.code} · {r.title}
+                  </Link>
+                )}
                 unavailable="—"
               />
             </Detail>
             <Detail label="Release">
               <DerivedValue
                 value={item.release}
-                render={(r) => `${r.code} · ${r.title}`}
+                render={(r) => (
+                  <Link to={`../../releases/${r.id}`} relative="path">
+                    {r.code} · {r.title}
+                  </Link>
+                )}
                 unavailable="—"
               />
             </Detail>

@@ -236,7 +236,11 @@ export function ActivityDetailPage() {
               <Section title="Related requirement">
                 <DerivedValue
                   value={activity.relatedRequirement}
-                  render={(r) => `${r.code} · ${r.title}`}
+                  render={(r) => (
+                    <Link to={`../../requirements/${r.id}`} relative="path">
+                      {r.code} · {r.title}
+                    </Link>
+                  )}
                   unavailable="None"
                 />
               </Section>

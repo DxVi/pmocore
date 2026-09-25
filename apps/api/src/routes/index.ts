@@ -7,7 +7,7 @@ import { activitiesRouter } from '../modules/activities/activities.routes.js';
 import { attachmentsRouter } from '../modules/attachments/attachments.routes.js';
 import { createAuthRouter } from '../modules/auth/auth.routes.js';
 import { createSessionMiddleware } from '../modules/auth/session.js';
-import { dashboardRouter } from '../modules/dashboard/dashboard.routes.js';
+import { dashboardRouter, projectMetricsRouter } from '../modules/dashboard/dashboard.routes.js';
 import { documentsRouter } from '../modules/documents/documents.routes.js';
 import { lookupRouter } from '../modules/lookup/lookup.routes.js';
 import { projectsRouter } from '../modules/projects/projects.routes.js';
@@ -45,6 +45,7 @@ export function createApiRouter() {
   const projectScoped = Router({ mergeParams: true });
   projectScoped.use(loadProject, blockArchivedWrites);
   projectScoped.use('/lookup', lookupRouter);
+  projectScoped.use('/metrics', projectMetricsRouter);
   projectScoped.use('/work-items', workItemsRouter);
   projectScoped.use('/requirements', requirementsRouter);
   projectScoped.use('/activities', activitiesRouter);

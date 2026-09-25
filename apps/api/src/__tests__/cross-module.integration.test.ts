@@ -60,6 +60,46 @@ describe.skipIf(!hasTestDatabase)('cross-module integration', () => {
     ).data;
   });
 
+  it('completes the first operational workflow end to end (G2)', async () => {
+    // Login is performed in beforeEach with a fresh session; create the rest here.
+    const meeting = await create<ActivityDetail>('/activities', {
+      title: 'Registrar site visit',
+      activityDate: '2026-10-05',
+      activityTypeId: ref('ACTIVITY_TYPE', 'SITE_VISIT'),
+      findings: 'Display font too small',
+    });
+    const [action] = body<RaidItemDetail[]>(
+      await withCsrf(agent.post(`${base()}/activities/${meeting.id}/actions`)).send({
+        actions: [{ title: 'Send revised mock-up', ownerName: 'PM', dueDate: '2026-10-09' }],
+      }),
+    ).data;
+    const photo = await withCsrf(agent.post(`${base()}/attachments`))
+      .field('parentType', 'activity')
+      .field('parentId', meeting.id)
+      .field('captureSource', 'camera')
+      .attach('file', FIXTURES.jpg, 'image.jpg');
+    expect(photo.status).toBe(201);
+
+    // Retrieve everything from a brand-new session (e.g. another device).
+    const second = await login(createApp());
+    const saved = body<ActivityDetail>(await second.get(`${base()}/activities/${meeting.id}`)).data;
+    expect(saved).toMatchObject({
+      code: 'MV-001',
+      findings: 'Display font too small',
+      attachmentCount: 1,
+      followUps: [expect.objectContaining({ id: action?.id, code: 'ACT-001' })],
+    });
+    const files = body<Attachment[]>(
+      await second.get(`${base()}/attachments?parentType=activity&parentId=${meeting.id}`),
+    ).data;
+    expect(files).toEqual([
+      expect.objectContaining({ captureSource: 'camera', contentType: 'image/jpeg' }),
+    ]);
+    const image = await second.get(files[0]?.contentUrl ?? '');
+    expect(image.status).toBe(200);
+    expect(Buffer.from(image.body as Buffer).equals(FIXTURES.jpg)).toBe(true);
+  });
+
   it('stores document files through the real attachment service (REQ-061)', async () => {
     const doc = await create<DocumentDetail>('/documents', { title: 'UAT sign-off' });
     const upload = await withCsrf(agent.post(`${base()}/attachments`))
