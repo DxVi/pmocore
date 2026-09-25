@@ -1,14 +1,24 @@
 import type { RouteObject } from 'react-router-dom';
-import { ModulePlaceholder } from '@/components/layout/ModulePlaceholder';
 
 /**
- * Releases & Acceptance routes — registered by PKG-1, implemented by PKG-3 inside this directory
- * (tasks.md §3.3). Paths are relative to /projects/:projectId. Pages read the
- * current project with useCurrentProject().
+ * Releases & Acceptance routes (PKG-3). Paths are relative to /projects/:projectId.
+ * Pages are loaded on demand to keep the phone start-up payload small.
  */
 export const releasesRoutes: RouteObject[] = [
   {
-    path: 'releases/*',
-    element: <ModulePlaceholder title="Releases & Acceptance" requirementRange="REQ-054–058" />,
+    path: 'releases',
+    lazy: async () => ({ Component: (await import('./ReleasesListPage')).ReleasesListPage }),
+  },
+  {
+    path: 'releases/new',
+    lazy: async () => ({ Component: (await import('./ReleaseFormPage')).ReleaseCreatePage }),
+  },
+  {
+    path: 'releases/:recordId',
+    lazy: async () => ({ Component: (await import('./ReleaseDetailPage')).ReleaseDetailPage }),
+  },
+  {
+    path: 'releases/:recordId/edit',
+    lazy: async () => ({ Component: (await import('./ReleaseFormPage')).ReleaseEditPage }),
   },
 ];
