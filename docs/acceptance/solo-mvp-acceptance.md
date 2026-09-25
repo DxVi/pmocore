@@ -1,6 +1,6 @@
 # Solo MVP Acceptance Checklist (Gates G2 and G4)
 
-Run against the **HTTPS staging deployment** (Render + Neon + Cloudflare R2). Record for each step: pass/fail, device, browser, and notes. Emulators and desktop "responsive mode" do not count for phone steps.
+Run against the **HTTPS staging deployment**. For the free-plan staging topology (Vercel + Render Free + Neon, PMOCORE-DEPLOY-VERCEL) run `vercel-staging-acceptance.md` first; this checklist then covers the full Solo MVP scope. Record for each step: pass/fail, device, browser, and notes. Emulators and desktop "responsive mode" do not count for phone steps.
 
 Preparation:
 
@@ -27,7 +27,7 @@ Preparation:
 | A13 | Each module list: search, filter by status, change sort | Results update; clear filters restores list; empty filters show an explanatory message |
 | A14 | Archive the project | Removed from dashboard; data viewable via Projects → Archived; create/edit controls hidden; unarchive restores |
 | A15 | Copy an attachment "Open" URL → Sign out → paste the URL | Login required; file not served |
-| A16 | Trigger a redeploy, reload while signed in | Still signed in; attachments still open (R2) |
+| A16 | Trigger a redeploy, reload while signed in | Still signed in; attachments still open (stored in the configured attachment storage) |
 
 ## B. Physical Android phone (Chrome) — mandatory
 
