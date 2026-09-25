@@ -57,6 +57,7 @@ export default tseslint.config(
             'database/vitest.config.ts',
             'database/src/__tests__/*.test.ts',
             'packages/shared/vitest.config.ts',
+            'packages/shared/src/__tests__/*.test.ts',
           ],
           defaultProject: 'tsconfig.base.json',
         },

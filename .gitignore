@@ -23,3 +23,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Local attachment storage (development and tests)
+.data/
