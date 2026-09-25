@@ -24,6 +24,14 @@ export class ApiClientError extends Error {
 
 export type ListResult<T> = { items: T[]; meta: PaginationMeta };
 
+/**
+ * Same-origin by design in every environment: the Vite dev server (local) and
+ * Vercel (staging) forward /api to the API, whose location is configured there
+ * (PMOCORE_API_ORIGIN). The browser never calls another site, so the session
+ * cookie stays first-party and SameSite=Lax.
+ */
+export const API_BASE_PATH = '/api';
+
 const SAFE_METHODS = new Set(['GET', 'HEAD']);
 // The API's CSRF guard requires this header on every state-changing request.
 export const CSRF_HEADER = 'X-PMO-Request';
@@ -43,7 +51,12 @@ async function send<T>(path: string, init: RequestInit): Promise<ApiSuccessPaylo
 
   let response: Response;
   try {
-    response = await fetch(`/api${path}`, { ...init, method, headers, credentials: 'same-origin' });
+    response = await fetch(`${API_BASE_PATH}${path}`, {
+      ...init,
+      method,
+      headers,
+      credentials: 'same-origin',
+    });
   } catch {
     throw new ApiClientError(
       'Unable to reach the server. Check your connection.',

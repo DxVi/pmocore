@@ -18,8 +18,10 @@ export type AppOptions = {
 };
 
 /**
- * Approved V1 deployment (D-005): one service serves the API under /api and the
- * built React app for everything else, falling back to index.html for client routes.
+ * Single-service deployment (D-005): the API under /api and the built React app
+ * for everything else, falling back to index.html for client routes. Disabled
+ * with SERVE_WEB_APP=false when the web app is hosted on Vercel, which proxies
+ * /api to this service (PMOCORE-DEPLOY-VERCEL).
  */
 function serveWebApp(app: Express, webDistPath: string) {
   app.use(
@@ -49,12 +51,15 @@ export function createApp(options: AppOptions = {}) {
   const webDistPath =
     options.webDistPath !== undefined
       ? options.webDistPath
-      : env.NODE_ENV === 'production'
+      : env.NODE_ENV === 'production' && env.SERVE_WEB_APP
         ? DEFAULT_WEB_DIST
         : null;
 
   // Render terminates TLS at its proxy; trusting one hop lets Secure session
-  // cookies and client IPs (login throttling) work correctly in production.
+  // cookies work in production. Behind the Vercel proxy the nearest client is
+  // Vercel's edge, so login throttling keys on that address; more hops are not
+  // trusted because this service is also reachable directly and the extra
+  // X-Forwarded-For entries could then be forged.
   if (env.NODE_ENV === 'production') app.set('trust proxy', 1);
 
   app.use(helmet());
@@ -67,6 +72,12 @@ export function createApp(options: AppOptions = {}) {
   app.use(express.json());
   app.use(requestLogger);
 
+  // API responses are per-user: never cacheable by browsers or by a proxy/CDN in
+  // front of the API (Vercel honours upstream caching headers on rewrites).
+  app.use('/api', (_req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store');
+    next();
+  });
   app.use('/api', createApiRouter());
 
   if (webDistPath) serveWebApp(app, webDistPath);

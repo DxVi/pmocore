@@ -12,8 +12,14 @@ export const envSchema = z
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 
     // Comma-separated list of browser origins allowed to make state-changing requests.
+    // Behind the Vercel proxy this is the Vercel site origin (the browser's origin).
     APP_ORIGIN: z.string().optional(),
     APP_TIMEZONE: z.string().default('Asia/Manila'),
+    // false when the web app is hosted elsewhere (Vercel) and this service is API-only.
+    SERVE_WEB_APP: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((v) => v === 'true'),
 
     SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters'),
     SESSION_IDLE_DAYS: positiveInt(7),

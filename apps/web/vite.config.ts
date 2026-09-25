@@ -17,9 +17,11 @@ export default defineConfig(({ command }) => ({
   },
   server: {
     port: 5173,
+    // Same model as the Vercel deployment: the browser calls same-origin /api and
+    // the dev server forwards it to the API (PMOCORE_API_ORIGIN, default local API).
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: process.env.PMOCORE_API_ORIGIN ?? 'http://localhost:3001',
         changeOrigin: true,
       },
     },

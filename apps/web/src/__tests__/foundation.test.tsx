@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ApiClientError, apiClient, onUnauthorized } from '@/lib/api-client';
+import { API_BASE_PATH, ApiClientError, apiClient, onUnauthorized } from '@/lib/api-client';
 import { toneFor } from '@/lib/status-tone';
 import { DataList } from '@/components/DataList';
 import { DerivedValue } from '@/components/DerivedValue';
@@ -30,6 +30,19 @@ describe('api client', () => {
     expect(postInit.credentials).toBe('same-origin');
     expect(new Headers(postInit.headers).get('X-PMO-Request')).toBe('1');
     expect(new Headers(getInit.headers).get('X-PMO-Request')).toBeNull();
+  });
+
+  it('keeps uploads same-origin behind the /api proxy (Vite dev server or Vercel)', async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(jsonResponse(201, { success: true, data: {} })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiClient.upload('/projects/p1/attachments', new FormData());
+
+    const [[url, init]] = fetchMock.mock.calls as unknown as [string, RequestInit][];
+    expect(API_BASE_PATH).toBe('/api');
+    expect(url).toBe('/api/projects/p1/attachments');
+    expect(init.credentials).toBe('same-origin');
+    expect(new Headers(init.headers).get('X-PMO-Request')).toBe('1');
   });
 
   it('signals an expired session on 401 and surfaces the API error', async () => {

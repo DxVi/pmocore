@@ -51,6 +51,8 @@ export default defineConfig({
       // Synthetic test-only secret; not used in any real environment.
       SESSION_SECRET: 'test-only-session-secret-0123456789abcdef',
       ATTACHMENT_STORAGE_DIR: './.data/test-attachments',
+      // Read when the root vercel.mjs configuration module is imported by its tests.
+      PMOCORE_API_ORIGIN: 'https://pmocore-api.onrender.com',
     },
   },
 });
