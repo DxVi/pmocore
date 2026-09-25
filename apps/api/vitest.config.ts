@@ -10,6 +10,8 @@ import { defineConfig } from 'vitest/config';
 const envPath = new URL('./.env', import.meta.url);
 const localEnv = existsSync(envPath) ? parseEnv(readFileSync(envPath, 'utf8')) : {};
 const testDatabaseUrl = process.env.TEST_DATABASE_URL ?? localEnv.TEST_DATABASE_URL ?? '';
+// Visible to the global setup, which runs in this main process.
+process.env.TEST_DATABASE_URL = testDatabaseUrl;
 
 export default defineConfig({
   resolve: {
@@ -35,6 +37,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    // Resets the test database once per run (migrations + reference seed).
+    globalSetup: ['./src/__tests__/setup/global-setup.ts'],
     // Integration test files share one database; run files one at a time.
     fileParallelism: false,
     env: {

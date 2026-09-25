@@ -8,7 +8,9 @@
     "dev": "tsx watch --tsconfig tsconfig.typecheck.json src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "user:upsert": "tsx --tsconfig tsconfig.typecheck.json src/scripts/user-upsert.ts",
+    "user:upsert:prod": "node dist/scripts/user-upsert.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1140.0",
