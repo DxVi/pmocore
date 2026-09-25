@@ -39,8 +39,8 @@ Node 24 is selected from `package.json` `engines`; set `NODE_VERSION=24` if Rend
 | `APP_TIMEZONE` | `Asia/Manila` |
 | `SESSION_SECRET` | random, ≥ 32 characters (`node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`) |
 | `LOG_LEVEL` | `info` |
-| `ATTACHMENT_STORAGE_DRIVER` | `local` until R2 is provisioned (no uploads exist before Package 2); `s3` afterwards |
-| `S3_ENDPOINT`, `S3_REGION=auto`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_FORCE_PATH_STYLE=true` | from Cloudflare R2 (Package 2) |
+| `ATTACHMENT_STORAGE_DRIVER` | `s3` (Cloudflare R2). `local` only if Project Leadership approves the Render-disk fallback (paid instance + disk mounted at `ATTACHMENT_STORAGE_DIR`) |
+| `S3_ENDPOINT`, `S3_REGION=auto`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_FORCE_PATH_STYLE=true` | from Cloudflare R2 (§5) — required before any upload |
 
 `PORT` is provided by Render. Production enables `trust proxy`, so the session cookie is issued with `Secure` behind Render's TLS termination; over plain HTTP no session cookie is issued.
 
@@ -73,8 +73,19 @@ Node 24 is selected from `package.json` `engines`; set `NODE_VERSION=24` if Rend
 2. Create an API token with **Object Read & Write** scoped to that bucket only.
 3. Enter the endpoint (`https://<account-id>.r2.cloudflarestorage.com`), bucket, key id and secret in Render, and set `ATTACHMENT_STORAGE_DRIVER=s3`.
 
-## 6. Rollback and recovery
+## 6. Demonstration data and maintenance commands
+
+| Purpose | Development | Production (Render Shell, after build) |
+|---|---|---|
+| Load synthetic BASC demo projects (`DEMO-HRIS`, `DEMO-PAYROLL`, `DEMO-QMS`) | `npm run demo:load -- <owner-email>` | `node apps/api/dist/scripts/demo-data.js load <owner-email>` |
+| Remove all `DEMO-` projects (never touches other projects) | `npm run demo:remove` | `node apps/api/dist/scripts/demo-data.js remove` |
+| Purge files of attachments removed > `ATTACHMENT_PURGE_DAYS` ago; report orphans | `npm run attachments:purge` | `node apps/api/dist/scripts/attachments-purge.js` |
+
+Without a Render Shell, run the development commands from a workstation with `DATABASE_URL`, `DATABASE_SSL`, and (for attachments) the S3 variables set to production values for that shell only.
+
+## 7. Rollback and recovery
 
 - Application: redeploy the previous successful Render deploy.
 - Database: migrations are forward-only; before the first migration of a release, create a Neon branch as a restore point; use Neon point-in-time restore if needed.
-- Pre-go-live reset (Gate G4): truncate business tables, re-run `db:seed`, re-create the user, clear the R2 staging prefix.
+- Pre-go-live cleanup (Gate G4): remove demonstration data with `demo:remove`. If other staging test projects must go, archive them, or — before any real data exists — reset the database (drop and recreate the Neon branch/database, `db:migrate`, `db:seed`, `user:upsert`) and empty the R2 bucket (no key prefix is used; the bucket holds only this application's attachments).
+- Acceptance checklist: `docs/acceptance/solo-mvp-acceptance.md`.

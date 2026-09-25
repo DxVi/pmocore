@@ -80,6 +80,8 @@ Run from the repository root:
 | `npm test` | `npm run test --workspaces --if-present` | Runs Vitest in every workspace. Integration tests run against `TEST_DATABASE_URL` (a local `*_test` database) and are skipped when it is not configured. |
 | `npm run db:migrate` | Builds `database` and applies all Drizzle migrations to `DATABASE_URL`. | Idempotent. Uses `apps/api/.env` locally; platform environment variables when hosted. |
 | `npm run db:seed` | Builds `database` and upserts the approved reference data. | Idempotent; values are only added or updated, never deleted. |
+| `npm run demo:load -- <owner-email>` / `npm run demo:remove` | Loads or removes the synthetic `DEMO-` BASC projects. | Idempotent; removal never touches non-demo projects. |
+| `npm run attachments:purge` | Deletes stored files of attachments removed more than `ATTACHMENT_PURGE_DAYS` ago. | Also reports orphan objects (never deleted automatically). |
 | `npm run user:upsert` | Creates or resets the single operational user. | Prompts for email, name and a hidden password (or reads `PMO_USER_EMAIL`, `PMO_USER_NAME`, `PMO_USER_PASSWORD` for one non-interactive run). Signs out the user's existing sessions. Production: `npm run user:upsert:prod -w apps/api` after a build. |
 | `npm run lint` | `eslint .` | Runs the repository's flat ESLint config (type-aware for all TypeScript workspaces, with React-specific rules for `apps/web`) across the whole repo. |
 | `npm run format` | `prettier --write .` | Formats the repository in place. |
@@ -168,4 +170,4 @@ The approved V1 deployment is a single Render Web Service (API + built frontend)
 
 ## Current Scope
 
-Implemented: AUTH-01 foundation; Solo MVP Package 1 (schema, reference data, authentication, projects, application shell, shared contracts, production serving). Placeholder routes and API routers exist for all later modules and return "not available yet" / 404 until their packages are delivered. There is no CI/CD pipeline.
+Implemented (Solo MVP Packages 1–4, integrated): authentication, projects and overview, dashboard with derived metrics, project plan / work items, requirements with traceability, Meetings & Visits with follow-up actions, Actions & RAID, attachments (file, gallery and camera; local or S3-compatible storage), Testing & Defects, Releases & Acceptance, Documents with files, removable BASC demonstration data, and single-service production serving. Acceptance checklist: `docs/acceptance/solo-mvp-acceptance.md`. There is no CI/CD pipeline.
