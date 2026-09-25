@@ -9,6 +9,10 @@ export function sendSuccess<T>(res: Response, data: T, meta?: PaginationMeta) {
   });
 }
 
+export function sendCreated<T>(res: Response, data: T) {
+  return res.status(201).json({ success: true, data });
+}
+
 export function sendError(
   res: Response,
   statusCode: number,

@@ -42,3 +42,113 @@ body {
   background-color: var(--pmo-bg-secondary);
   border-color: var(--pmo-border-color);
 }
+
+/* ------------------------------------------------------------------------
+   Solo MVP component styles. Built only on existing --pmo-* tokens so every
+   theme applies; no new visual system (design §8).
+   ------------------------------------------------------------------------ */
+
+.pmo-navbar {
+  background-color: var(--pmo-bg-secondary);
+}
+
+.pmo-navbar .nav-link.active {
+  color: var(--pmo-accent-primary);
+  font-weight: var(--pmo-font-weight-semibold);
+}
+
+.pmo-theme-select {
+  min-width: 9rem;
+}
+
+.pmo-badge {
+  font-weight: var(--pmo-font-weight-medium);
+  white-space: normal;
+  text-align: left;
+}
+
+.pmo-badge-success {
+  background-color: var(--pmo-status-success);
+  color: #fff;
+}
+
+.pmo-badge-warning {
+  background-color: var(--pmo-status-warning);
+  color: #212529;
+}
+
+.pmo-badge-danger {
+  background-color: var(--pmo-status-danger);
+  color: #fff;
+}
+
+.pmo-badge-info {
+  background-color: var(--pmo-status-info);
+  color: #212529;
+}
+
+.pmo-badge-primary {
+  background-color: var(--pmo-accent-primary);
+  color: #fff;
+}
+
+.pmo-badge-neutral {
+  background-color: var(--pmo-bg-tertiary);
+  color: var(--pmo-text-primary);
+}
+
+.pmo-clickable {
+  cursor: pointer;
+}
+
+.pmo-clickable:focus-visible {
+  outline: 2px solid var(--pmo-accent-primary);
+  outline-offset: 2px;
+}
+
+.pmo-login-card {
+  max-width: 26rem;
+}
+
+.pmo-module-nav .nav-link {
+  white-space: nowrap;
+}
+
+.pmo-filter-field {
+  min-width: 10rem;
+}
+
+.pmo-picker-results {
+  z-index: 1050;
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
+.pmo-prewrap {
+  white-space: pre-wrap;
+}
+
+.min-w-0 {
+  min-width: 0;
+}
+
+/* Touch-friendly controls and a reachable primary action on phones (design §8.4). */
+@media (max-width: 767.98px) {
+  .btn,
+  .form-control,
+  .form-select {
+    min-height: 44px;
+  }
+
+  .pmo-form-actions {
+    position: sticky;
+    bottom: 0;
+    padding: var(--pmo-space-sm) 0;
+    background-color: var(--pmo-bg-primary);
+    border-top: 1px solid var(--pmo-border-color);
+  }
+
+  .pmo-page-actions > .btn {
+    flex-grow: 1;
+  }
+}
