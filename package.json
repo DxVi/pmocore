@@ -36,6 +36,9 @@
     "typecheck": "tsc -p packages/shared/tsconfig.json --noEmit && tsc -p database/tsconfig.json --noEmit && tsc -p apps/api/tsconfig.typecheck.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit",
     "db:migrate": "npm run build -w database && npm run db:migrate -w database",
     "db:seed": "npm run build -w database && npm run db:seed -w database",
-    "user:upsert": "npm run user:upsert -w apps/api"
+    "user:upsert": "npm run user:upsert -w apps/api",
+    "demo:load": "npm run demo:load -w apps/api --",
+    "demo:remove": "npm run demo:remove -w apps/api",
+    "attachments:purge": "npm run attachments:purge -w apps/api"
   }
 }
