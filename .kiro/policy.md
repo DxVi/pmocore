@@ -2,7 +2,7 @@
 
 ## 1. Purpose and Authority
 
-This policy is the permanent governance baseline for PMOCore. It is self-contained and governs all authorized PMOCore work.
+This policy is. the permanent governance baseline for PMOCore. It is self-contained and governs all authorized PMOCore work.
 
 **Project Leadership is the User + ChatGPT.** Project Leadership owns product direction, scope, requirements approval, architecture approval, design approval, task authorization, sequencing, acceptance, change decisions, Git checkpoint authorization, release authorization, and amendments to this policy. No implementation or specification agent may override an approved Project Leadership decision.
 
