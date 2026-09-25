@@ -7,10 +7,9 @@ Account creation, paid plans and all credentials are handled by Project Leadersh
 ## 1. Neon PostgreSQL
 
 1. Create a Neon project in region **AWS Asia Pacific (Singapore) `aws-ap-southeast-1`** and a database named `pmocore`.
-2. Copy the **pooled** connection string for the database role.
-3. **Remove every SSL parameter** from the URL — `sslmode=require` in particular. PMOCore rejects `sslmode`, `sslcert`, `sslkey` and `sslrootcert` (AUTH-01 D-009); SSL is controlled by `DATABASE_SSL=require`.
-4. If the URL contains `channel_binding=require`, remove it as well unless a connection test proves it works with the `pg` driver (to be confirmed during the first deployment).
-5. Note the point-in-time restore window of the Neon plan (backup/recovery).
+2. Copy the **direct** connection string (hostname **without** `-pooler`). Neon's pooled endpoint runs PgBouncer in transaction mode, which Neon advises against for schema migrations; the Render pre-deploy migration uses the same `DATABASE_URL`, and a single Solo MVP instance (pool of 10) does not need the pooler.
+3. **Remove every query parameter** from the URL: `sslmode=require` (PMOCore rejects `sslmode`, `sslcert`, `sslkey`, `sslrootcert` — AUTH-01 D-009; SSL is controlled by `DATABASE_SSL=require`) and `channel_binding=require` (a libpq option; the Node `pg` driver is not libpq-based). The result looks like `postgresql://<role>:<password>@ep-xxxx.ap-southeast-1.aws.neon.tech/pmocore`.
+4. Note the point-in-time restore window of the Neon plan (backup/recovery).
 
 ## 2. Render Web Service
 
@@ -33,7 +32,7 @@ Node 24 is selected from `package.json` `engines`; set `NODE_VERSION=24` if Rend
 | Variable | Value |
 |---|---|
 | `NODE_ENV` | `production` |
-| `DATABASE_URL` | Neon pooled URL **without** SSL parameters |
+| `DATABASE_URL` | Neon **direct** URL with no query parameters (§1) |
 | `DATABASE_SSL` | `require` |
 | `APP_ORIGIN` | the service's HTTPS URL, e.g. `https://pmocore.onrender.com` (no trailing slash) |
 | `APP_TIMEZONE` | `Asia/Manila` |
@@ -72,6 +71,8 @@ Node 24 is selected from `package.json` `engines`; set `NODE_VERSION=24` if Rend
 1. Create a private bucket `pmocore-attachments` (location hint: Asia-Pacific). No public access, no custom domain.
 2. Create an API token with **Object Read & Write** scoped to that bucket only.
 3. Enter the endpoint (`https://<account-id>.r2.cloudflarestorage.com`), bucket, key id and secret in Render, and set `ATTACHMENT_STORAGE_DRIVER=s3`.
+4. No CORS rule is needed: browsers never access the bucket directly — every download is streamed through the authenticated API.
+5. Startup validates that all S3 variables are present when `ATTACHMENT_STORAGE_DRIVER=s3`; the first real upload is the connectivity test (acceptance checklist, section A, step A12 and section B, step B4).
 
 ## 6. Demonstration data and maintenance commands
 
@@ -87,5 +88,6 @@ Without a Render Shell, run the development commands from a workstation with `DA
 
 - Application: redeploy the previous successful Render deploy.
 - Database: migrations are forward-only; before the first migration of a release, create a Neon branch as a restore point; use Neon point-in-time restore if needed.
+- Attachments: removed attachments stay in R2 for `ATTACHMENT_PURGE_DAYS` (30) and are only deleted by the manual `attachments:purge` command, so accidental removals are recoverable within that window (restore by clearing `deleted_at` on the row). R2 objects are not versioned; take a periodic bucket copy if longer retention is required.
 - Pre-go-live cleanup (Gate G4): remove demonstration data with `demo:remove`. If other staging test projects must go, archive them, or — before any real data exists — reset the database (drop and recreate the Neon branch/database, `db:migrate`, `db:seed`, `user:upsert`) and empty the R2 bucket (no key prefix is used; the bucket holds only this application's attachments).
 - Acceptance checklist: `docs/acceptance/solo-mvp-acceptance.md`.
